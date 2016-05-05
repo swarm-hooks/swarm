@@ -70,7 +70,7 @@ func (*DefaultImp) HandleEvent(eventType states.EventEnum, w http.ResponseWriter
 			log.Error(e1)
 		}
 		//next.ServeHTTP(w, newReq)
-              rec := httptest.NewRecorder()
+        rec := httptest.NewRecorder()
 		next.ServeHTTP(rec, newReq)	
 		freeResources(quota, rec.Body.Bytes(), tenant, memory, "", 0)		
 		// copy everything from recorder to writer
@@ -293,14 +293,21 @@ func (*DefaultImp) HandleEvent(eventType states.EventEnum, w http.ResponseWriter
 freeResources - free resources for tenant quota enforcement.
 */
 func freeResources(quota *quota.Quota, body []byte, tenant string, memory int64, containerId string, returnCode int) {
+	log.Debug("in freeResources")
 	if (containerId == "") && (body != nil){
-		id, err := utils.ParseID(body)
+		//id, err := utils.ParseID(body)
+		var createContainerResponse dockerclient.Container  
+		decoder := json.NewDecoder(bytes.NewReader(body))
+		err := decoder.Decode(&createContainerResponse)
 		if err != nil {
 			log.Error(err)
 			// free resources
 			quota.UpdateQuota(tenant, true, "", memory)
 			return
 		}
+		log.Infof("createContainerResponse %+v",createContainerResponse)
+		id := createContainerResponse.Id
+		
 		log.Info("Add to quota container ID: ", id)
 		quota.AddContainer(memory, id, tenant)
 		return

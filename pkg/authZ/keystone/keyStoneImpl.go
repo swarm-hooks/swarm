@@ -10,8 +10,7 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/docker/swarm/cluster"
 	"github.com/docker/swarm/pkg/authZ/states"
-	"github.com/jeffail/gabs"
-	//	"github.com/docker/swarm/pkg/authZ"
+	"encoding/json"
 
 	"github.com/docker/swarm/pkg/authZ/headers"
 	"github.com/docker/swarm/pkg/authZ/utils"
@@ -19,7 +18,7 @@ import (
 	"github.com/samalba/dockerclient"
 )
 
-type KeyStoneAPI struct{ quotaAPI QuotaAPI }
+type KeyStoneAPI struct{}
 
 var cacheAPI *Cache
 
@@ -68,8 +67,6 @@ func (this *KeyStoneAPI) Init() error {
 	cacheAPI.Init()
 	configs = new(Configs)
 	configs.ReadConfigurationFormfile()
-	this.quotaAPI = new(QuotaImpl)
-	this.quotaAPI.Init()
 	return nil
 }
 
@@ -97,10 +94,7 @@ func (this *KeyStoneAPI) ValidateRequest(cluster cluster.Cluster, eventType stat
 
 	switch eventType {
 	case states.ContainerCreate:
-		err := this.quotaAPI.ValidateQuota(cluster, reqBody, tenantIdToValidate)
-		if err != nil {
-			return states.NotApproved, &utils.ValidationOutPutDTO{ErrorMessage: err.Error()}
-		}
+		var err error
 		if (!flavors.IsFlavorValid(containerConfig)) {
 			return states.NotApproved,&utils.ValidationOutPutDTO{ErrorMessage: "No flavor matches resource request!"}
 		}
@@ -148,15 +142,13 @@ func isAdminTenant(tenantIdToValidate string) bool {
 	return swarmAdminTenantId == tenantIdToValidate
 }
 
-//SHORT CIRCUIT KEYSTONE
-//func queryKeystone(tenantIdToValidate string, tokenToValidate string) bool {
-//	return true
-//}
-
 func queryKeystone(tenantIdToValidate string, tokenToValidate string) bool {
+	log.Debug("in queryKeystone")
 	var headers = map[string]string{
 		headers.AuthZTokenHeaderName: tokenToValidate,
 	}
+	 
+	var listTenantsResponse map[string]interface{}
 	resp := doHTTPreq("GET", configs.GetConf().KeystoneUrl+"tenants", "", headers)
 	defer resp.Body.Close()
 	log.Debug("response Status:", resp.Status)
@@ -166,9 +158,6 @@ func queryKeystone(tenantIdToValidate string, tokenToValidate string) bool {
 	if 200 != resp.StatusCode {
 		return false
 	}
-
-	jsonParsed, _ := gabs.ParseJSON(body)
-	children, _ := jsonParsed.S("tenants").Children()
 	var isSwarmMember bool = false
 	var swarmMembersTenantId string = os.Getenv("SWARM_MEMBERS_TENANT_ID")
 	if swarmMembersTenantId == "" {
@@ -177,21 +166,27 @@ func queryKeystone(tenantIdToValidate string, tokenToValidate string) bool {
 	}
 	var isTenantFound bool = false
 	if tenantIdToValidate != swarmMembersTenantId {
-		for i := 0; i < len(children); i++ {
-			if children[i].Path("id").Data().(string) == tenantIdToValidate {
+		err := json.Unmarshal(body,&listTenantsResponse)
+		if err != nil {
+			log.Fatal("Error in Keystone List Tenant decode:", err)
+			panic("Error: could not decode Keystone List Tenant ")
+		}
+		for _,v := range listTenantsResponse["tenants"].([]interface{}) {
+			id := v.(map[string]interface{})["id"]
+			log.Infof("tenants id",id)
+			if id == tenantIdToValidate {
 				isTenantFound = true
-			} else if !isSwarmMember {
-				if children[i].Path("id").Data().(string) == swarmMembersTenantId {
-					isSwarmMember = true
-				}
+			} else if id == swarmMembersTenantId {
+				isSwarmMember = true
 			}
 			if isTenantFound && isSwarmMember {
 				log.Info("isTenantFound and isSwarmMember are true")
 				break
 			}
+			
 		}
 	} else {
-		log.Debug("error: Tenant trying use SWARM_MEMBERS_TENANT_ID")
+		log.Debug("error: Tenant trying to use SWARM_MEMBERS_TENANT_ID")
 	}
 	if !(isTenantFound && isSwarmMember) {
 		log.Debug("error: Tenant not eligible")
