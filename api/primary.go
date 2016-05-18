@@ -139,6 +139,8 @@ func NewPrimary(cluster cluster.Cluster, tlsConfig *tls.Config, status StatusHan
 }
 
 func setupPrimaryRouter(r *mux.Router, context *context, enableCors bool) {
+	hooks := new(authZ.Hooks)
+	hooks.Init()
 	for method, mappings := range routes {
 		for route, fct := range mappings {
 			log.WithFields(log.Fields{"method": method, "route": route}).Debug("Registering HTTP route")
@@ -156,8 +158,6 @@ func setupPrimaryRouter(r *mux.Router, context *context, enableCors bool) {
 			}
 			localMethod := method
 
-			hooks := new(authZ.Hooks)
-			hooks.Init()
 			r.Path("/v{version:[0-9]+.[0-9]+}" + localRoute).Methods(localMethod).Handler(hooks.PrePostAuthWrapper(context.cluster, http.HandlerFunc(wrap)))
 			r.Path(localRoute).Methods(localMethod).Handler(hooks.PrePostAuthWrapper(context.cluster, http.HandlerFunc(wrap)))
 
@@ -175,8 +175,6 @@ func setupPrimaryRouter(r *mux.Router, context *context, enableCors bool) {
 					optionsFct(context, w, r)
 				}
 
-				hooks := new(authZ.Hooks)
-				hooks.Init()
 				r.Path("/v{version:[0-9]+.[0-9]+}" + localRoute).
 				    Methods(optionsMethod).Handler(hooks.PrePostAuthWrapper(context.cluster, http.HandlerFunc(wrap)))
 				r.Path(localRoute).Methods(optionsMethod).
