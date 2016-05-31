@@ -8,6 +8,8 @@ import (
 	"github.com/docker/swarm/cluster"
 	"github.com/docker/swarm/pkg/multiTenancyPlugins/authentication"
 	"github.com/docker/swarm/pkg/multiTenancyPlugins/authorization"
+	"github.com/docker/swarm/pkg/multiTenancyPlugins/flavors"
+	"github.com/docker/swarm/pkg/multiTenancyPlugins/authorization/utils"
 	"github.com/docker/swarm/pkg/multiTenancyPlugins/naming"
 	"github.com/docker/swarm/pkg/multiTenancyPlugins/pluginAPI"
 	"github.com/docker/swarm/pkg/multiTenancyPlugins/utils"
@@ -40,8 +42,12 @@ func (*Executor) Init() {
 		log.Debug("Keystone not supported")
 	} else {
 		authorizationPlugin := new(authorization.DefaultAuthZImpl)
+		//flavorsPlugin := flavors.NewPlugin(authorizationPlugin.Handle)
+		//nameScoping := namescoping.NewNameScoping(flavorsPlugin.Handle)
 		nameScoping := namescoping.NewNameScoping(authorizationPlugin.Handle)
-		authenticationPlugin := authentication.NewAuthentication(nameScoping.Handle)
+		flavorsPlugin := flavors.NewPlugin(nameScoping.Handle)
+		//authenticationPlugin := authentication.NewAuthentication(nameScoping.Handle)
+		authenticationPlugin := authentication.NewAuthentication(flavorsPlugin.Handle)
 		startHandler = authenticationPlugin.Handle
 	}
 }
