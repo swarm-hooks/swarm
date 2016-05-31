@@ -9,9 +9,9 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/docker/swarm/cluster"
-	"github.com/docker/swarm/pkg/multiTenancyPlugins/authorization/headers"
-	"github.com/docker/swarm/pkg/multiTenancyPlugins/authorization/utils"
+	"github.com/docker/swarm/pkg/multiTenancyPlugins/headers"
 	"github.com/docker/swarm/pkg/multiTenancyPlugins/pluginAPI"
+	"github.com/docker/swarm/pkg/multiTenancyPlugins/utils"
 	"github.com/gorilla/mux"
 	"github.com/samalba/dockerclient"
 )
@@ -26,6 +26,32 @@ func NewNameScoping(handler pluginAPI.Handler) pluginAPI.PluginAPI {
 		nextHandler: handler,
 	}
 	return nameScoping
+}
+
+func uniqlyIdentfyResource(cluster cluster.Cluster, r *http.Request, w http.ResponseWriter) {
+	resourceName := mux.Vars(r)["name"]
+	tenantId := r.Header.Get(headers.AuthZTenantIdHeaderName)
+Loop:
+	for _, container := range cluster.Containers() {
+		if container.Info.ID == resourceName {
+			//Match by Full Id - Do nothing
+			break
+		} else {
+			for _, name := range container.Names {
+				if (resourceName == name || resourceName == container.Labels[headers.OriginalNameLabel]) && container.Labels[headers.TenancyLabel] == tenantId {
+					//Match by Name - Replace to full ID
+					mux.Vars(r)["name"] = container.Info.ID
+					r.URL.Path = strings.Replace(r.URL.Path, resourceName, container.Info.ID, 1)
+					break Loop
+				}
+			}
+		}
+		if strings.HasPrefix(container.Info.ID, resourceName) {
+			mux.Vars(r)["name"] = container.Info.ID
+			r.URL.Path = strings.Replace(r.URL.Path, resourceName, container.Info.ID, 1)
+			break
+		}
+	}
 }
 
 //Handle authentication on request and call next plugin handler.
@@ -58,35 +84,17 @@ func (nameScoping *DefaultNameScopingImpl) Handle(command string, cluster cluste
 		return nameScoping.nextHandler(command, cluster, w, r, swarmHandler)
 
 	//Find the container and replace the name with ID
-	case "containerjson", "containerstart", "containerstop", "containerdelete":
-		//In case of container json - should record and clean - consider seperating..
-		resourceName := mux.Vars(r)["name"]
-		tenantId := r.Header.Get(headers.AuthZTenantIdHeaderName)
-		Loop:
-		for _, container := range cluster.Containers() {
-			if container.Info.ID == resourceName {
-				//Match by Full Id - Do nothing
-				break
-			} else {
-			    for _, name := range container.Names {
-				  if (resourceName == name || resourceName == container.Labels[headers.OriginalNameLabel]) && container.Labels[headers.TenancyLabel] == tenantId {
-					//Match by Name - Replace to full ID
-					mux.Vars(r)["name"] = container.Info.ID
-					r.URL.Path = strings.Replace(r.URL.Path, resourceName, container.Info.ID, 1)
-					break Loop
-				  }
-			    }
-			}
-			if strings.HasPrefix(container.Info.ID,resourceName) {
-				mux.Vars(r)["name"] = container.Info.ID
-				r.URL.Path = strings.Replace(r.URL.Path, resourceName, container.Info.ID, 1)
-				break
-			}
+	case "containerjson":
+		if resourceName := mux.Vars(r)["name"]; resourceName != "" {
+			uniqlyIdentfyResource(cluster, r, w)
+			return nameScoping.nextHandler(command, cluster, w, r, swarmHandler)
 		}
+	case "containerstart", "containerstop", "containerdelete", "containerkill", "containerpause", "containerunpause", "containerupdate", "containercopy", "containerattach", "containerlogs":
+
+		uniqlyIdentfyResource(cluster, r, w)
 		return nameScoping.nextHandler(command, cluster, w, r, swarmHandler)
-	case "listContainers":
+	case "listContainers", "listNetworks":
 		return nameScoping.nextHandler(command, cluster, w, r, swarmHandler)
-		//record to clean up host names and labeling etc..
 	default:
 
 	}

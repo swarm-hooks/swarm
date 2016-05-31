@@ -2,21 +2,21 @@ package utils
 
 import (
 	"bytes"
+	"encoding/json"
 	"io"
 	"io/ioutil"
+	"math/rand"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"regexp"
-
-	"math/rand"
-	"net/http/httptest"
+	"strings"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/docker/swarm/cluster"
 
-	"github.com/docker/swarm/pkg/multiTenancyPlugins/authorization/headers"
+	"github.com/docker/swarm/pkg/multiTenancyPlugins/headers"
 	"github.com/gorilla/mux"
-	//	"encoding/json"
 )
 
 type ValidationOutPutDTO struct {
@@ -35,8 +35,6 @@ type ValidationOutPutDTO struct {
 //Use something else...
 func ParseCommand(r *http.Request) string {
 	return commandParser(r)
-	//	return "containerCreate"
-	//	return "containerInspect"
 }
 
 func ModifyRequest(r *http.Request, body io.Reader, urlStr string, containerID string) (*http.Request, error) {
@@ -77,7 +75,8 @@ func CleanUpLabeling(r *http.Request, rec *httptest.ResponseRecorder) []byte {
 	//TODO - Here we just use the token for the tenant name for now so we remove it from the data before returning to user.
 	newBody = bytes.Replace(newBody, []byte(r.Header.Get(headers.AuthZTenantIdHeaderName)), []byte(""), -1)
 	newBody = bytes.Replace(newBody, []byte(",\" \":\" \""), []byte(""), -1)
-	log.Debug("Got this new body...", string(newBody))
+	log.Debugf("Clean up labeling done.")
+	//	log.Debug("Got this new body...", string(newBody))
 	return newBody
 }
 
@@ -106,22 +105,56 @@ func commandParser(r *http.Request) string {
 	paramsArr2 := containersWithIdentifier.FindStringSubmatch(r.URL.Path)
 	//assert the it is not possible for two of them to co-Exist
 
+	log.Debug(paramsArr1)
+	log.Debug(paramsArr2)
+
 	switch r.Method {
 	case "DELETE":
-		return "containerdelete"
+		if len(paramsArr1) > 0 && strings.HasPrefix(paramsArr1[0], "/containers") {
+			return "containerdelete"
+		}
 	}
 	//Order IS important
 	if len(paramsArr2) == 3 {
-		//inspect / delete / start ...
+
 		return "container" + paramsArr2[2]
 	}
 	if len(paramsArr1) == 2 {
-		//ps / json / Create...
+
 		if paramsArr1[1] == "json" {
 			return "listContainers"
 		}
 		return "container" + paramsArr1[1]
 	}
 
+	if strings.HasSuffix(r.URL.Path, "/networks") {
+		return "listNetworks"
+	}
+
 	return "This is not supported yet and will end up in the default of the Switch"
+}
+
+//FilterNetworks - filter out all networks not created by tenant.
+func FilterNetworks(r *http.Request, rec *httptest.ResponseRecorder) []byte {
+	var networks cluster.Networks
+	if err := json.NewDecoder(bytes.NewReader(rec.Body.Bytes())).Decode(&networks); err != nil {
+		log.Error(err)
+		return nil
+	}
+	var candidates cluster.Networks
+	tenantName := r.Header.Get(headers.AuthZTenantIdHeaderName)
+	for _, network := range networks {
+		fullName := strings.SplitN(network.Name, "/", 2)
+		name := fullName[len(fullName)-1]
+		if strings.HasPrefix(name, tenantName) {
+			network.Name = strings.TrimLeft(name, tenantName)
+			candidates = append(candidates, network)
+		}
+	}
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(candidates); err != nil {
+		log.Error(err)
+		return nil
+	}
+	return buf.Bytes()
 }

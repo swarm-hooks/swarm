@@ -7,7 +7,7 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/docker/swarm/cluster"
-	"github.com/docker/swarm/pkg/multiTenancyPlugins/authorization/headers"
+	"github.com/docker/swarm/pkg/multiTenancyPlugins/headers"
 	"github.com/docker/swarm/pkg/multiTenancyPlugins/pluginAPI"
 )
 
@@ -31,6 +31,7 @@ func (authentication *AuthenticationImpl) Handle(command string, cluster cluster
 		return errors.New("Not Authorized!")
 	}
 	if tenantIdToValidate == os.Getenv("SWARM_ADMIN_TENANT_ID") {
+		swarmHandler.ServeHTTP(w, r)
 		return nil
 	}
 	return authentication.nextHandler(command, cluster, w, r, swarmHandler)
