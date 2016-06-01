@@ -84,7 +84,7 @@ func (nameScoping *DefaultNameScopingImpl) Handle(command string, cluster cluste
 			}
 		}
 		return nameScoping.nextHandler(command, cluster, w, r, swarmHandler)
-	case "listContainers", "listNetworks":
+	case "listContainers", "listNetworks", "clusterInfo":
 		return nameScoping.nextHandler(command, cluster, w, r, swarmHandler)
 	default:
 
