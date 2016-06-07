@@ -5,6 +5,7 @@ import (
 	"os"
 	log "github.com/Sirupsen/logrus"
 	"github.com/docker/swarm/cluster"
+	"github.com/docker/swarm/pkg/multiTenancyPlugins/quota"
 	"github.com/docker/swarm/pkg/multiTenancyPlugins/authentication"
 	"github.com/docker/swarm/pkg/multiTenancyPlugins/authorization"
 	"github.com/docker/swarm/pkg/multiTenancyPlugins/flavors"
@@ -41,9 +42,8 @@ func (*Executor) Init() {
 	if os.Getenv("SWARM_AUTH_BACKEND") == "Keystone" {
 		log.Debug("Keystone not supported")
 	} else {
-		authorizationPlugin := new(authorization.DefaultAuthZImpl)
-		//flavorsPlugin := flavors.NewPlugin(authorizationPlugin.Handle)
-		//nameScoping := namescoping.NewNameScoping(flavorsPlugin.Handle)
+		quotaPlugin := quota.NewQuota(nil)
+		authorizationPlugin := authorization.NewAuthorization(quotaPlugin.Handle)
 		nameScoping := namescoping.NewNameScoping(authorizationPlugin.Handle)
 		flavorsPlugin := flavors.NewPlugin(nameScoping.Handle)
 		//authenticationPlugin := authentication.NewAuthentication(nameScoping.Handle)
