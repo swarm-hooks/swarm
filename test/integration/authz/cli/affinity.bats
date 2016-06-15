@@ -17,7 +17,7 @@
   
 
 load cli_helpers
-
+ERRORMSG="Error response from daemon: Tenant not authorized to references containers that it does not own"
 @test "Check affinity:container==" {
     #skip
 	run docker -H $SWARM_HOST --config $DOCKER_CONFIG1 run -d --name frontend busybox true
@@ -55,7 +55,7 @@ load cli_helpers
 	#validate tenant isolation
 	run docker -H $SWARM_HOST --config $DOCKER_CONFIG2 run -d -e affinity:container==frontend busybox true
     [ "$status" -ne 0 ]
-    [[ "$output" == *"Error"* ]]
+    [[ "$output" == *"$ERRORMSG"* ]]
 	run docker -H $SWARM_HOST --config $DOCKER_CONFIG2 run -d --name frontend busybox true
     [ "$status" -eq 0 ]
     [[ "$output" != *"Error"* ]]
@@ -106,7 +106,7 @@ load cli_helpers
 	#validate tenant isolation
 	run docker -H $SWARM_HOST --config $DOCKER_CONFIG2 run -d -e affinity:com.example.type==frontend busybox true
     [ "$status" -ne 0 ]
-    [[ "$output" == *"Error"* ]]
+    [[ "$output" == *"$ERRORMSG"* ]]
 	run docker -H $SWARM_HOST --config $DOCKER_CONFIG2 run -d --label com.example.type=frontend busybox true
     [ "$status" -eq 0 ]
     [[ "$output" != *"Error"* ]]
