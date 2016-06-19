@@ -22,6 +22,9 @@ var startHandler pluginAPI.Handler
 
 //Handle - Hook point from primary to plugins
 func (*Executor) Handle(cluster cluster.Cluster, swarmHandler http.Handler) http.Handler {
+	if os.Getenv("SWARM_MULTI_TENANT") == "false" {
+		return swarmHandler
+	} 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if os.Getenv("SWARM_MULTI_TENANT") == "false" {
 			swarmHandler.ServeHTTP(w, r)
@@ -40,7 +43,7 @@ func (*Executor) Init() {
 	if os.Getenv("SWARM_MULTI_TENANT") == "false" {
 		log.Debug("SWARM_MULTI_TENANT is false")
 		return
-	}
+	} 
 	quotaPlugin := quota.NewQuota(nil)
 	authorizationPlugin := authorization.NewAuthorization(quotaPlugin.Handle)
 	nameScoping := namescoping.NewNameScoping(authorizationPlugin.Handle)
