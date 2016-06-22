@@ -55,19 +55,51 @@ func ModifyRequest(r *http.Request, body io.Reader, urlStr string, containerID s
 	return r, nil
 }
 
-func getResourceId(r *http.Request) string {
-	return mux.Vars(r)["name"]
-}
+//func getResourceId(r *http.Request) string {
+//	return mux.Vars(r)["name"]
+//}
 
 //Assumes ful ID was injected
-func IsOwner(cluster cluster.Cluster, tenantId string, r *http.Request) bool {
-	for _, container := range cluster.Containers() {
-		if container.Info.ID == getResourceId(r) {
-			return container.Labels[headers.TenancyLabel] == tenantId
+//func IsOwner(cluster cluster.Cluster, tenantId string, r *http.Request) bool {
+//	for _, container := range cluster.Containers() {
+//		if container.Info.ID == getResourceId(r) {
+//			return container.Labels[headers.TenancyLabel] == tenantId
+//		}
+//	}
+//	return false
+//}
+
+//Assumes ful ID was injected
+func IsResourceOwner(cluster cluster.Cluster, tenantName string, resourceId string, resourceType string) bool {
+	switch resourceType {
+	case "container":
+		for _, container := range cluster.Containers() {
+			if container.Info.ID == resourceId {
+				return container.Labels[headers.TenancyLabel] == tenantName
+			}
 		}
-	}
-	return false
+		return false
+	case "network":
+		for _, network := range cluster.Networks() {
+			if network.ID == resourceId {
+				return strings.HasPrefix(network.Name, tenantName)
+			}
+		}
+		return false
+	default:
+		log.Warning("Unsupported resource type for authorization")
+		return false
+	}		
 }
+
+//func IsNetworkOwner(cluster cluster.Cluster, tenantName string, networkId string) bool {
+//	for _, network := range cluster.Networks() {
+//		if network.ID == networkId {
+//			return strings.HasPrefix(network.Name, tenantName)
+//		}
+//	}
+//	return false
+//}
 
 //Expand / Refactor
 func CleanUpLabeling(r *http.Request, rec *httptest.ResponseRecorder) []byte {
@@ -96,6 +128,7 @@ func RandStringBytesRmndr(n int) string {
 var containers = regexp.MustCompile(`/containers/(.*)`)
 var containersWithIdentifier = regexp.MustCompile(`/containers/(.*)/(.*)`)
 var networks = regexp.MustCompile(`/networks/(.*)`)
+var networksWithIdentifier = regexp.MustCompile(`/networks/(.*)/(.*)`)
 
 //TODO - Do the same for networks, images, and so on. What is not supported will fail because of the generic message will go to default
 
@@ -105,6 +138,7 @@ func commandParser(r *http.Request) string {
 	paramsArr1 := containers.FindStringSubmatch(r.URL.Path)
 	paramsArr2 := containersWithIdentifier.FindStringSubmatch(r.URL.Path)
 	networksParams := networks.FindStringSubmatch(r.URL.Path)
+	networksWithIdParams := networksWithIdentifier.FindStringSubmatch(r.URL.Path)	
 	//assert the it is not possible for two of them to co-Exist
 
 	log.Debug(paramsArr1)
@@ -114,6 +148,9 @@ func commandParser(r *http.Request) string {
 	case "DELETE":
 		if len(paramsArr1) > 0 && strings.HasPrefix(paramsArr1[0], "/containers") {
 			return "containerdelete"
+		}
+		if len(networksParams) > 0 && strings.HasPrefix(networksParams[0], "/networks") {
+			return "deleteNetwork"
 		}
 	}
 	//Order IS important
@@ -132,6 +169,17 @@ func commandParser(r *http.Request) string {
 	if len(networksParams) == 2 {
 		if networksParams[1] == "create"{
 			return "createNetwork"
+		} else {
+			return "inspectNetwork"
+		}
+	}
+	
+	if len(networksWithIdParams) == 3 {
+		if networksWithIdParams[2] == "connect"{
+			return "connectNetwork"
+		}
+		if networksWithIdParams[2] == "disconnect"{
+			return "disconnectNetwork"
 		}
 	}
 
@@ -148,6 +196,7 @@ func commandParser(r *http.Request) string {
 
 //FilterNetworks - filter out all networks not created by tenant.
 func FilterNetworks(r *http.Request, rec *httptest.ResponseRecorder) []byte {
+	log.Debug("-----------FilterNetworks--------")
 	var networks cluster.Networks
 	if err := json.NewDecoder(bytes.NewReader(rec.Body.Bytes())).Decode(&networks); err != nil {
 		log.Error(err)
@@ -158,6 +207,7 @@ func FilterNetworks(r *http.Request, rec *httptest.ResponseRecorder) []byte {
 	for _, network := range networks {
 		fullName := strings.SplitN(network.Name, "/", 2)
 		name := fullName[len(fullName)-1]
+		log.Debug("-----------FilterNetworks--------" + name)
 		if strings.HasPrefix(name, tenantName) {
 			network.Name = strings.TrimPrefix(name, tenantName)
 			candidates = append(candidates, network)

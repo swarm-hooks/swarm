@@ -14,9 +14,11 @@ import (
 	"github.com/samalba/dockerclient"
 
 	log "github.com/Sirupsen/logrus"
+	apitypes "github.com/docker/engine-api/types"
 	"github.com/docker/swarm/cluster"
 	"github.com/docker/swarm/pkg/multiTenancyPlugins/headers"
 	"github.com/docker/swarm/pkg/multiTenancyPlugins/utils"
+	"github.com/gorilla/mux"
 )
 
 type DefaultAuthZImpl struct {
@@ -34,12 +36,16 @@ func (defaultauthZ *DefaultAuthZImpl) Handle(command string, cluster cluster.Clu
 	log.Debug("Plugin AuthZ got command: " + command)
 	switch command {
 	case "containercreate":
-
 		defer r.Body.Close()
 		if reqBody, _ := ioutil.ReadAll(r.Body); len(reqBody) > 0 {
 			var containerConfig dockerclient.ContainerConfig
 			if err := json.NewDecoder(bytes.NewReader(reqBody)).Decode(&containerConfig); err != nil {
 				return err
+			}
+			// network authorization
+			//if !utils.IsNetworkOwner(cluster, r.Header.Get(headers.AuthZTenantIdHeaderName), containerConfig.HostConfig.NetworkMode) {
+			if !utils.IsResourceOwner(cluster, r.Header.Get(headers.AuthZTenantIdHeaderName), containerConfig.HostConfig.NetworkMode, "network") {
+				return errors.New("Not authorized or no such network!")
 			}
 			containerConfig.Labels[headers.TenancyLabel] = r.Header.Get(headers.AuthZTenantIdHeaderName)
 
@@ -49,25 +55,24 @@ func (defaultauthZ *DefaultAuthZImpl) Handle(command string, cluster cluster.Clu
 			}
 
 			r, _ = utils.ModifyRequest(r, bytes.NewReader(buf.Bytes()), "", "")
-
 		}	
-		return defaultauthZ.nextHandler(command, cluster, w, r, swarmHandler)
-		log.Debug("Returned from Swarm")
+		swarmHandler.ServeHTTP(w, r)
+
 		//In case of container json - should record and clean - consider seperating..
 	case "containerstart", "containerstop", "containerdelete", "containerkill", "containerpause", "containerunpause", "containerupdate", "containercopy", "containerattach", "containerlogs":
-		if !utils.IsOwner(cluster, r.Header.Get(headers.AuthZTenantIdHeaderName), r) {
+		//if !utils.IsOwner(cluster, r.Header.Get(headers.AuthZTenantIdHeaderName), r) {
+		if !utils.IsResourceOwner(cluster, r.Header.Get(headers.AuthZTenantIdHeaderName), mux.Vars(r)["name"], "container") {
 			return errors.New("Not Authorized!")
 		}
-		return defaultauthZ.nextHandler(command, cluster, w, r, swarmHandler)
+		swarmHandler.ServeHTTP(w, r)
+
 	case "containerjson":
-		if !utils.IsOwner(cluster, r.Header.Get(headers.AuthZTenantIdHeaderName), r) {
+		//if !utils.IsOwner(cluster, r.Header.Get(headers.AuthZTenantIdHeaderName), r) {
+		if !utils.IsResourceOwner(cluster, r.Header.Get(headers.AuthZTenantIdHeaderName), mux.Vars(r)["name"], "container") {
 			return errors.New("Not Authorized!")
 		}
-		
 		rec := httptest.NewRecorder()
-		if err := defaultauthZ.nextHandler(command, cluster, rec, r, swarmHandler); err != nil {
-				return err
-		}
+		swarmHandler.ServeHTTP(rec, r)
 		/*POST Swarm*/
 		w.WriteHeader(rec.Code)
 		for k, v := range rec.Header() {
@@ -97,10 +102,10 @@ func (defaultauthZ *DefaultAuthZImpl) Handle(command string, cluster cluster.Clu
 			log.Error(e1)
 		}
 		rec := httptest.NewRecorder()
-		if err := defaultauthZ.nextHandler(command, cluster, rec, newReq, swarmHandler); err != nil {
-				return err
-		}
+
 		//TODO - May decide to overrideSwarms handlers.getContainersJSON - this is Where to do it.
+		swarmHandler.ServeHTTP(rec, newReq)
+
 		/*POST Swarm*/
 		w.WriteHeader(rec.Code)
 		for k, v := range rec.Header() {
@@ -113,9 +118,8 @@ func (defaultauthZ *DefaultAuthZImpl) Handle(command string, cluster cluster.Clu
 
 	case "listNetworks":
 		rec := httptest.NewRecorder()
-		if err := defaultauthZ.nextHandler(command, cluster, rec, r, swarmHandler); err != nil {
-				return err
-		}
+		swarmHandler.ServeHTTP(rec, r)
+
 		w.WriteHeader(rec.Code)
 		for k, v := range rec.Header() {
 			w.Header()[k] = v
@@ -123,12 +127,41 @@ func (defaultauthZ *DefaultAuthZImpl) Handle(command string, cluster cluster.Clu
 		newBody := utils.FilterNetworks(r, rec)
 		w.Write(newBody)
 		
+	case "deleteNetwork", "inspectNetwork":
+		//if !utils.IsNetworkOwner(cluster, r.Header.Get(headers.AuthZTenantIdHeaderName), mux.Vars(r)["networkid"]) {
+		if !utils.IsResourceOwner(cluster, r.Header.Get(headers.AuthZTenantIdHeaderName), mux.Vars(r)["networkid"], "network") {
+			return errors.New("Not authorized or no such network!")
+		}	
+		swarmHandler.ServeHTTP(w, r)
+	case "connectNetwork", "disconnectNetwork":
+		//if !utils.IsNetworkOwner(cluster, r.Header.Get(headers.AuthZTenantIdHeaderName), mux.Vars(r)["networkid"]) {
+		if !utils.IsResourceOwner(cluster, r.Header.Get(headers.AuthZTenantIdHeaderName), mux.Vars(r)["networkid"], "network") {
+			return errors.New("Not authorized or no such network!")
+		}
+		defer r.Body.Close()
+		if reqBody, _ := ioutil.ReadAll(r.Body); len(reqBody) > 0 {
+				var request apitypes.NetworkConnect
+				if err := json.NewDecoder(bytes.NewReader(reqBody)).Decode(&request); err != nil {
+         			return err
+				}				
+				// check request.Container (conatinerID)
+				
+				var buf bytes.Buffer
+				if err := json.NewEncoder(&buf).Encode(request); err != nil {
+					return err
+				}								
+				r, _ = utils.ModifyRequest(r, bytes.NewReader(buf.Bytes()), "", "")			
+		}
+		swarmHandler.ServeHTTP(w, r)
 	case "clusterInfo", "createNetwork":
-		return defaultauthZ.nextHandler(command, cluster, w, r, swarmHandler)
+		log.Debug("-----------------------")
+		log.Debug(r)
+		swarmHandler.ServeHTTP(w, r)	
 
 	//Always allow or not?
 	default:
-		if !utils.IsOwner(cluster, r.Header.Get(headers.AuthZTenantIdHeaderName), r) {
+		//if !utils.IsOwner(cluster, r.Header.Get(headers.AuthZTenantIdHeaderName), r) {
+		if !utils.IsResourceOwner(cluster, r.Header.Get(headers.AuthZTenantIdHeaderName), mux.Vars(r)["name"], "container") {
 			return errors.New("Not Authorized!")
 		}
 	}
