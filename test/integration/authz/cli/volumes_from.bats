@@ -17,7 +17,7 @@
   
 
 load cli_helpers
-
+NOTAUTHORIZED="Error response from daemon: Not authorized error. Tenant does not own container"
 @test "Check --volumes-from" {
 	#skip
     run docker -H $SWARM_HOST --config $DOCKER_CONFIG1 create -v /data/db --name mongodbdata mongo:2.6 /bin/echo "Data-only container for mongodb."
@@ -42,10 +42,10 @@ load cli_helpers
     # ensure that tenant 2 can not access the volume from tenant 1
     run docker -H $SWARM_HOST --config $DOCKER_CONFIG2 run -d --volumes-from mongodbdata -p :27017  mongo:2.6 --smallfiles
     [ "$status" -ne 0 ]
-    [[ "$output" == *"Error"* ]]
+    [[ "$output" == *"$NOTAUTHORIZED mongodbdata"* ]]
     run docker -H $SWARM_HOST --config $DOCKER_CONFIG2 run -d --volumes-from $cid_mongodbdata -p :27017  mongo:2.6 --smallfiles
     [ "$status" -ne 0 ]
-    [[ "$output" == *"Error"* ]]
+    [[ "$output" == *"$NOTAUTHORIZED $cid_mongodbdata"* ]]
     # ensure that tenant 2 can create his own with same name
     run docker -H $SWARM_HOST --config $DOCKER_CONFIG2 create -v /data/db --name mongodbdata mongo:2.6 /bin/echo "Data-only container for mongodb."
     [ "$status" -eq 0 ]
