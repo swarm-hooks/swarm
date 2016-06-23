@@ -19,7 +19,7 @@
 load cli_helpers
 
 @test "Check --volumes-from and link" {
-    skip "work in progress"
+    #skip "work in progress"
     run docker -H $SWARM_HOST --config $DOCKER_CONFIG1 create -v /data/db --name mongodbdata mongo:2.6 /bin/echo "Data-only container for mongodb."
     [ "$status" -eq 0 ]
     [[ "$output" != *"Error"* ]]
