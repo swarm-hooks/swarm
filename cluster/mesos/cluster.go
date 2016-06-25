@@ -92,13 +92,6 @@ func NewCluster(scheduler *scheduler.Scheduler, TLSConfig *tls.Config, master st
 	// Do not check error here, so mesos-go can still try.
 	hostname, _ := os.Hostname()
 
-	// Build a framework ID from params, if not defined, mesos will assign a random id
- 	var frameworkID *mesosproto.FrameworkID
- 	if frameworkUID, ok := options.String("mesos.frameworkid", "SWARM_MESOS_FRAMEWORKID"); ok {
- 		frameworkID = &mesosproto.FrameworkID{Value: &frameworkUID}
- 	}
- 
-
 	if role, found := options.String("mesos.role", "SWARM_MESOS_ROLE"); found {
 		cluster.role = role
 	} else {
@@ -106,7 +99,7 @@ func NewCluster(scheduler *scheduler.Scheduler, TLSConfig *tls.Config, master st
 	}
 
 	driverConfig := mesosscheduler.DriverConfig{
-		Framework:        &mesosproto.FrameworkInfo{Name: proto.String(frameworkName), User: &user, Role: &cluster.role, Id: frameworkID},
+		Framework:        &mesosproto.FrameworkInfo{Name: proto.String(frameworkName), User: &user, Role: &cluster.role},
 		Master:           cluster.master,
 		HostnameOverride: hostname,
 	}
@@ -136,10 +129,6 @@ func NewCluster(scheduler *scheduler.Scheduler, TLSConfig *tls.Config, master st
 		}
 		driverConfig.BindingAddress = bindingAddress
 	}
-
-	if failoverTimeout, ok := options.Float("mesos.failovertimeout", "SWARM_MESOS_FAILOVER_TIMEOUT"); ok {
- 		driverConfig.Framework.FailoverTimeout = &failoverTimeout
- 	}
 
 	if checkpointFailover, ok := options.Bool("mesos.checkpointfailover", "SWARM_MESOS_CHECKPOINT_FAILOVER"); ok {
 		driverConfig.Framework.Checkpoint = &checkpointFailover
@@ -524,11 +513,11 @@ func (c *Cluster) removeOffer(offer *mesosproto.Offer) bool {
 		return false
 	}
 	found := s.removeOffer(offer.Id.GetValue())
-	if s.empty() {
-		// Disconnect from engine
-		s.engine.Disconnect()
-		delete(c.agents, offer.SlaveId.GetValue())
-	}
+//	if s.empty() {
+//		// Disconnect from engine
+//		s.engine.Disconnect()
+//		delete(c.agents, offer.SlaveId.GetValue())
+//	}
 	return found
 }
 

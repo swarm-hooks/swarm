@@ -55,19 +55,6 @@ func ModifyRequest(r *http.Request, body io.Reader, urlStr string, containerID s
 	return r, nil
 }
 
-//func getResourceId(r *http.Request) string {
-//	return mux.Vars(r)["name"]
-//}
-
-//Assumes ful ID was injected
-//func IsOwner(cluster cluster.Cluster, tenantId string, r *http.Request) bool {
-//	for _, container := range cluster.Containers() {
-//		if container.Info.ID == getResourceId(r) {
-//			return container.Labels[headers.TenancyLabel] == tenantId
-//		}
-//	}
-//	return false
-//}
 
 //Assumes ful ID was injected
 func IsResourceOwner(cluster cluster.Cluster, tenantName string, resourceId string, resourceType string) bool {
@@ -92,14 +79,6 @@ func IsResourceOwner(cluster cluster.Cluster, tenantName string, resourceId stri
 	}		
 }
 
-//func IsNetworkOwner(cluster cluster.Cluster, tenantName string, networkId string) bool {
-//	for _, network := range cluster.Networks() {
-//		if network.ID == networkId {
-//			return strings.HasPrefix(network.Name, tenantName)
-//		}
-//	}
-//	return false
-//}
 
 //Expand / Refactor
 func CleanUpLabeling(r *http.Request, rec *httptest.ResponseRecorder) []byte {
@@ -166,20 +145,20 @@ func commandParser(r *http.Request) string {
 		return "container" + paramsArr1[1]
 	}
 	
-	if len(networksParams) == 2 {
-		if networksParams[1] == "create"{
-			return "createNetwork"
-		} else {
-			return "inspectNetwork"
-		}
-	}
-	
 	if len(networksWithIdParams) == 3 {
 		if networksWithIdParams[2] == "connect"{
 			return "connectNetwork"
 		}
 		if networksWithIdParams[2] == "disconnect"{
 			return "disconnectNetwork"
+		}
+	}
+	
+	if len(networksParams) == 2 {
+		if networksParams[1] == "create"{
+			return "createNetwork"
+		} else {
+			return "inspectNetwork"
 		}
 	}
 
@@ -196,7 +175,6 @@ func commandParser(r *http.Request) string {
 
 //FilterNetworks - filter out all networks not created by tenant.
 func FilterNetworks(r *http.Request, rec *httptest.ResponseRecorder) []byte {
-	log.Debug("-----------FilterNetworks--------")
 	var networks cluster.Networks
 	if err := json.NewDecoder(bytes.NewReader(rec.Body.Bytes())).Decode(&networks); err != nil {
 		log.Error(err)
@@ -207,7 +185,6 @@ func FilterNetworks(r *http.Request, rec *httptest.ResponseRecorder) []byte {
 	for _, network := range networks {
 		fullName := strings.SplitN(network.Name, "/", 2)
 		name := fullName[len(fullName)-1]
-		log.Debug("-----------FilterNetworks--------" + name)
 		if strings.HasPrefix(name, tenantName) {
 			network.Name = strings.TrimPrefix(name, tenantName)
 			candidates = append(candidates, network)

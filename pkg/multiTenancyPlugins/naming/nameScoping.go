@@ -29,34 +29,8 @@ func NewNameScoping(handler pluginAPI.Handler) pluginAPI.PluginAPI {
 	return nameScoping
 }
 
-//func uniquelyIdentifyContainer(cluster cluster.Cluster, r *http.Request, w http.ResponseWriter) {
-//	resourceName := mux.Vars(r)["name"]
-//	tenantId := r.Header.Get(headers.AuthZTenantIdHeaderName)
-//Loop:
-//	for _, container := range cluster.Containers() {
-//		if container.Info.ID == resourceName {
-//			//Match by Full Id - Do nothing
-//			break
-//		} else {
-//			for _, name := range container.Names {
-//				if (resourceName == name || resourceName == container.Labels[headers.OriginalNameLabel]) && container.Labels[headers.TenancyLabel] == tenantId {
-//					//Match by Name - Replace to full ID
-//					mux.Vars(r)["name"] = container.Info.ID
-//					r.URL.Path = strings.Replace(r.URL.Path, resourceName, container.Info.ID, 1)
-//					break Loop
-//				}
-//			}
-//		}
-//		if strings.HasPrefix(container.Info.ID, resourceName) {
-//			mux.Vars(r)["name"] = container.Info.ID
-//			r.URL.Path = strings.Replace(r.URL.Path, resourceName, container.Info.ID, 1)
-//			break
-//		}
-//	}
-//}
 
 func getContainerID(cluster cluster.Cluster, r *http.Request, containerName string) string {
-	//resourceName := mux.Vars(r)["name"]
 	tenantId := r.Header.Get(headers.AuthZTenantIdHeaderName)
 	for _, container := range cluster.Containers() {
 		if container.Info.ID == containerName {
@@ -88,13 +62,11 @@ func getNetworkID(cluster cluster.Cluster, r *http.Request, networkId string) st
 		} else {
 			if network.Name == tenantId + networkId {
 				//Match by name. Replace by full ID.
-				mux.Vars(r)["networkid"] = network.ID
 				return network.ID
 			}
 		}
 		if strings.HasPrefix(network.ID, networkId) {
 			//Match by short id. Replace by full ID.
-			mux.Vars(r)["networkid"] = network.ID
 			return network.ID
 		}
 	}
@@ -130,7 +102,6 @@ func (nameScoping *DefaultNameScopingImpl) Handle(command string, cluster cluste
 	//Find the container and replace the name with ID
 	case "containerjson":
 		if containerName := mux.Vars(r)["name"]; containerName != "" {
-			//uniquelyIdentifyContainer(cluster, r, w)
 			conatinerID := getContainerID(cluster, r, containerName) 
 			mux.Vars(r)["name"] = conatinerID
 			r.URL.Path = strings.Replace(r.URL.Path, containerName, conatinerID, 1)
@@ -140,6 +111,7 @@ func (nameScoping *DefaultNameScopingImpl) Handle(command string, cluster cluste
 		if netName := mux.Vars(r)["networkid"]; netName != "" {
 			netID := getNetworkID(cluster, r, netName) 
 			r.URL.Path = strings.Replace(r.URL.Path, netName, netID, 1)
+			mux.Vars(r)["networkid"] = netID
 			defer r.Body.Close()
 			if reqBody, _ := ioutil.ReadAll(r.Body); len(reqBody) > 0 {
 				var request apitypes.NetworkConnect
@@ -159,7 +131,6 @@ func (nameScoping *DefaultNameScopingImpl) Handle(command string, cluster cluste
 			return nameScoping.nextHandler(command, cluster, w, r, swarmHandler)
 		}
 	case "containerstart", "containerstop", "containerdelete", "containerkill", "containerpause", "containerunpause", "containerupdate", "containercopy", "containerattach", "containerlogs":
-		//uniquelyIdentifyContainer(cluster, r, w)
 		containerName := mux.Vars(r)["name"]
 		conatinerID := getContainerID(cluster, r, containerName) 
 		mux.Vars(r)["name"] = conatinerID
@@ -185,6 +156,7 @@ func (nameScoping *DefaultNameScopingImpl) Handle(command string, cluster cluste
 		if netName := mux.Vars(r)["networkid"]; netName != "" {
 			netID := getNetworkID(cluster, r, netName)
 			r.URL.Path = strings.Replace(r.URL.Path, netName, netID, 1)
+			mux.Vars(r)["networkid"] = netID
 		}
 		return nameScoping.nextHandler(command, cluster, w, r, swarmHandler)
 	case "listContainers", "listNetworks", "clusterInfo":
