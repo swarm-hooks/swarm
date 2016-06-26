@@ -51,11 +51,12 @@ func init() {
 	supportedAPIsMap["serverlogin"] = false
 	supportedAPIsMap["serverlogout"] = false
 	//Network
-	supportedAPIsMap["connectNetwork"] = false
-	supportedAPIsMap["createNetwork"] = true
-	supportedAPIsMap["disconnectNetwork"] = false
 	supportedAPIsMap["networkslist"] = true
-	supportedAPIsMap["networkremove"] = false
+	supportedAPIsMap["networkinspect"] = true
+	supportedAPIsMap["networkconnect"] = true
+	supportedAPIsMap["networkdisconnect"] = true
+	supportedAPIsMap["networkcreate"] = true
+	supportedAPIsMap["networkdelete"] = true
 	//Volume
 	supportedAPIsMap["createVolume"] = false
 	supportedAPIsMap["inspectVolume"] = false
