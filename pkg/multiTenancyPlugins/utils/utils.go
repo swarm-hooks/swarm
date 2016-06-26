@@ -14,7 +14,6 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/docker/swarm/cluster"
-
 	"github.com/docker/swarm/pkg/multiTenancyPlugins/headers"
 	"github.com/gorilla/mux"
 )
@@ -50,18 +49,27 @@ func ModifyRequest(r *http.Request, body io.Reader, urlStr string, containerID s
 	return r, nil
 }
 
-func getResourceId(r *http.Request) string {
-	return mux.Vars(r)["name"]
-}
-
 //Assumes ful ID was injected
-func IsOwner(cluster cluster.Cluster, tenantId string, r *http.Request) bool {
-	for _, container := range cluster.Containers() {
-		if container.Info.ID == getResourceId(r) {
-			return container.Labels[headers.TenancyLabel] == tenantId
+func IsResourceOwner(cluster cluster.Cluster, tenantName string, resourceId string, resourceType string) bool {
+	switch resourceType {
+	case "container":
+		for _, container := range cluster.Containers() {
+			if container.Info.ID == resourceId {
+				return container.Labels[headers.TenancyLabel] == tenantName
+			}
 		}
-	}
-	return false
+		return false
+	case "network":
+		for _, network := range cluster.Networks() {
+			if network.ID == resourceId {
+				return strings.HasPrefix(network.Name, tenantName)
+			}
+		}
+		return false
+	default:
+		log.Warning("Unsupported resource type for authorization")
+		return false
+	}		
 }
 
 //Expand / Refactor
@@ -108,10 +116,12 @@ const (
 	CONTAINER_LOGS    CommandEnum = "containerlogs"
 	CONTAINER_STATS   CommandEnum = "containerstats"
 	//SKIP ...
-	NETWORKS_LIST   CommandEnum = "networkslist"
-	NETWORK_INSPECT CommandEnum = "networkinspect"
-
-	NETWORK_CREATE CommandEnum = "createnetwork"
+	NETWORKS_LIST      CommandEnum = "networkslist"
+	NETWORK_INSPECT    CommandEnum = "networkinspect"
+	NETWORK_CONNECT    CommandEnum = "networkconnect"
+	NETWORK_DISCONNECT CommandEnum = "networkdisconnect"
+	NETWORK_CREATE     CommandEnum = "networkcreate"
+	NETWORK_DELETE     CommandEnum = "networkdelete"
 
 	//SKIP ...
 	//POST
@@ -140,7 +150,6 @@ var invMapmap map[string]CommandEnum
 var initialized bool
 
 func ParseCommand(r *http.Request) CommandEnum {
-
 	if !initialized {
 		invMapmap = make(map[string]CommandEnum)
 		invMapmap["ping"] = PING
@@ -160,7 +169,10 @@ func ParseCommand(r *http.Request) CommandEnum {
 		//SKIP ...
 		invMapmap["networkslist"] = NETWORKS_LIST
 		invMapmap["networkinspect"] = NETWORK_INSPECT
-		invMapmap["createnetwork"] = NETWORK_CREATE
+		invMapmap["networkconnect"] = NETWORK_CONNECT
+		invMapmap["networkdisconnect"] = NETWORK_DISCONNECT
+		invMapmap["networkcreate"] = NETWORK_CREATE
+		invMapmap["networkdelete"] = NETWORK_DELETE
 		//SKIP ...
 		//POST
 		invMapmap["containerscreate"] = CONTAINER_CREATE
@@ -183,9 +195,6 @@ func ParseCommand(r *http.Request) CommandEnum {
 		invMapmap["imagesjson"] = IMAGES_JSON
 		initialized = true
 	}
-	//	command := commandParser(r)
-	//	log.Debug("++++++" + command + "++++++")
-
 	return invMapmap[commandParser(r)]
 }
 
