@@ -84,7 +84,7 @@ func (defaultauthZ *DefaultAuthZImpl) Handle(command utils.CommandEnum, cluster 
 
 		w.Write(newBody)
 
-	case "listContainers":
+	case "json", "ps":
 		//TODO - clean up code
 		var v = url.Values{}
 		mapS := map[string][]string{"label": {headers.TenancyLabel + "=" + r.Header.Get(headers.AuthZTenantIdHeaderName)}}
