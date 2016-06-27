@@ -14,6 +14,7 @@ import (
 	"github.com/docker/swarm/pkg/multiTenancyPlugins/headers"
 	"github.com/docker/swarm/pkg/multiTenancyPlugins/pluginAPI"
 	"github.com/docker/swarm/pkg/multiTenancyPlugins/utils"
+	c "github.com/docker/swarm/pkg/multiTenancyPlugins/utils"
 	"github.com/gorilla/mux"
 	"github.com/samalba/dockerclient"
 )
@@ -60,7 +61,7 @@ Loop:
 func (nameScoping *DefaultNameScopingImpl) Handle(command utils.CommandEnum, cluster cluster.Cluster, w http.ResponseWriter, r *http.Request, swarmHandler http.Handler) error {
 	log.Debug("Plugin nameScoping Got command: " + command)
 	switch command {
-	case "containercreate":
+	case c.CONTAINER_CREATE:
 		if "" != r.URL.Query().Get("name") {
 			defer r.Body.Close()
 			if reqBody, _ := ioutil.ReadAll(r.Body); len(reqBody) > 0 {
@@ -92,15 +93,17 @@ func (nameScoping *DefaultNameScopingImpl) Handle(command utils.CommandEnum, clu
 		return nameScoping.nextHandler(command, cluster, w, r, swarmHandler)
 
 	//Find the container and replace the name with ID
-	case "containerjson":
+	case c.CONTAINER_JSON:
 		if resourceName := mux.Vars(r)["name"]; resourceName != "" {
 			uniquelyIdentifyContainer(cluster, r, w)
 			return nameScoping.nextHandler(command, cluster, w, r, swarmHandler)
+		} else {
+			log.Debug("What now?")
 		}
-	case "containerstart", "containerstop", "containerdelete", "containerkill", "containerpause", "containerunpause", "containerupdate", "containercopy", "containerattach", "containerlogs":
+	case c.CONTAINER_START, c.CONTAINER_STOP, c.CONTAINER_DELETE, c.CONTAINER_KILL, c.CONTAINER_PAUSE, c.CONTAINER_UNPAUSE, c.CONTAINER_UPDATE, c.CONTAINER_COPY, c.CONTAINER_ATTACH, c.CONTAINER_LOGS:
 		uniquelyIdentifyContainer(cluster, r, w)
 		return nameScoping.nextHandler(command, cluster, w, r, swarmHandler)
-	case "createNetwork":
+	case c.NETWORK_CREATE:
 		defer r.Body.Close()
 		if reqBody, _ := ioutil.ReadAll(r.Body); len(reqBody) > 0 {
 
@@ -118,7 +121,7 @@ func (nameScoping *DefaultNameScopingImpl) Handle(command utils.CommandEnum, clu
 			r, _ = utils.ModifyRequest(r, bytes.NewReader(buf.Bytes()), "", "")
 		}
 		return nameScoping.nextHandler(command, cluster, w, r, swarmHandler)
-	case "listContainers", "listNetworks", "clusterInfo":
+	case c.PS, c.JSON, c.NETWORKS_LIST, c.INFO:
 		return nameScoping.nextHandler(command, cluster, w, r, swarmHandler)
 	default:
 
