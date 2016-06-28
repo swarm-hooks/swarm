@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"strings"
+	"errors"
 	"fmt"
 	log "github.com/Sirupsen/logrus"
 	"github.com/docker/swarm/cluster"
@@ -218,14 +219,16 @@ func getIDsFromContainerReferences(cluster cluster.Cluster, tenantId string, con
 	for _, container := range cluster.Containers() {
 		if container.Labels[headers.TenancyLabel] == tenantId {
 		  for i, containerReference := range containerReferences {
+			var err error
 			var containerId string
 			if affinityLabelFirst && i == 0 {
-				containerId = getIDFromContainerLabel(container,tenantId,containerReference)
+				containerId,err = getIDFromContainerLabel(container,tenantId,containerReference)
 			} else {
-				containerId = getContainerId(container,tenantId,containerReference)
+				containerId,err = getContainerId(container,tenantId,containerReference)
 			}
-			if containerId != "" {
+			if err == nil {
 				m[containerReference] = containerId
+				break
 			}			
 		  }
 		}		
@@ -239,39 +242,41 @@ func getIDsFromContainerReferences(cluster cluster.Cluster, tenantId string, con
 	return m,nil
 }
 
-func getIDFromContainerLabel(container *cluster.Container, tenantId string, affinityLabelValue string ) (string) {
+func getIDFromContainerLabel(container *cluster.Container, tenantId string, affinityLabelValue string ) (string, error) {
 	if container.Labels[headers.TenancyLabel] != tenantId {
-		return ""
+		return "",errors.New("not authorized to access this container.")
 	}
 	// affinityLabelValue is in the form label==value
 	kv := strings.Split(affinityLabelValue,"==")
 	for k,v := range container.Config.Labels {
 		if k == kv[0] && v == kv[1] {
-			return container.Info.ID
+			return container.Info.ID,nil
 		} 
 	}
-	return ""	
+	return "",errors.New("label==value does not match this containter.")	
 }
 
-func getContainerId (container *cluster.Container, tenantId string, containerReference string) (string) {
+func getContainerId (container *cluster.Container, tenantId string, containerReference string) (string, error) {
 	if container.Labels[headers.TenancyLabel] != tenantId {
-		return ""
+		return "",errors.New("not authorized to access this container.")
 	}
 	// check for long id
 	if container.Info.ID == containerReference {
-		return container.Info.ID
-    } else {
+		return container.Info.ID,nil
+    } else if containerReference == container.Labels[headers.OriginalNameLabel] {
+		return container.Info.ID,nil
+	} else {
 		// check for name
 	    for _, name := range container.Names {
-		   if (containerReference == name || containerReference == container.Labels[headers.OriginalNameLabel])  {
-			  return container.Info.ID	   
+		   if containerReference == name  {
+			  return container.Info.ID,nil	   
 			}
 		}
 	}
 	// check for short id
 	if strings.HasPrefix(container.Info.ID, containerReference) {
-		return container.Info.ID
+		return container.Info.ID,nil
     }
-	return ""
+	return "",errors.New("containerReference does not match this containter.")
 }
 
