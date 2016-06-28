@@ -8,6 +8,7 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/docker/swarm/cluster"
+	"github.com/docker/swarm/pkg/multiTenancyPlugins"
 	"github.com/gorilla/mux"
 )
 
@@ -138,6 +139,8 @@ func NewPrimary(cluster cluster.Cluster, tlsConfig *tls.Config, status StatusHan
 }
 
 func setupPrimaryRouter(r *mux.Router, context *context, enableCors bool) {
+	multiTenant := new(multiTenancyPlugins.Executor)
+	multiTenant.Init()
 	for method, mappings := range routes {
 		for route, fct := range mappings {
 			log.WithFields(log.Fields{"method": method, "route": route}).Debug("Registering HTTP route")
@@ -155,8 +158,8 @@ func setupPrimaryRouter(r *mux.Router, context *context, enableCors bool) {
 			}
 			localMethod := method
 
-			r.Path("/v{version:[0-9]+.[0-9]+}" + localRoute).Methods(localMethod).HandlerFunc(wrap)
-			r.Path(localRoute).Methods(localMethod).HandlerFunc(wrap)
+			r.Path("/v{version:[0-9]+.[0-9]+}" + localRoute).Methods(localMethod).Handler(multiTenant.Handle(context.cluster, http.HandlerFunc(wrap)))
+			r.Path(localRoute).Methods(localMethod).Handler(multiTenant.Handle(context.cluster, http.HandlerFunc(wrap)))
 
 			if enableCors {
 				optionsMethod := "OPTIONS"
@@ -173,9 +176,9 @@ func setupPrimaryRouter(r *mux.Router, context *context, enableCors bool) {
 				}
 
 				r.Path("/v{version:[0-9]+.[0-9]+}" + localRoute).
-					Methods(optionsMethod).HandlerFunc(wrap)
+					Methods(optionsMethod).Handler(multiTenant.Handle(context.cluster, http.HandlerFunc(wrap)))
 				r.Path(localRoute).Methods(optionsMethod).
-					HandlerFunc(wrap)
+					Handler(multiTenant.Handle(context.cluster, http.HandlerFunc(wrap)))
 			}
 		}
 	}

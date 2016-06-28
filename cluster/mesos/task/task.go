@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"os"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/docker/docker/pkg/stringid"
@@ -77,12 +78,13 @@ func (t *Task) Build(slaveID string, offers map[string]*mesosproto.Offer) {
 		}
 	}
 
-	switch t.config.HostConfig.NetworkMode {
+	networkMode := string(t.config.HostConfig.NetworkMode)
+	switch networkMode {
 	case "none":
 		t.Container.Docker.Network = mesosproto.ContainerInfo_DockerInfo_NONE.Enum()
 	case "host":
 		t.Container.Docker.Network = mesosproto.ContainerInfo_DockerInfo_HOST.Enum()
-	case "default", "bridge", "":
+	default:
 		var ports []uint64
 
 		for _, offer := range offers {
@@ -130,9 +132,9 @@ func (t *Task) Build(slaveID string, offers map[string]*mesosproto.Offer) {
 		}
 		// TODO handle -P here
 		t.Container.Docker.Network = mesosproto.ContainerInfo_DockerInfo_BRIDGE.Enum()
-	default:
-		log.Errorf("Unsupported network mode %q", t.config.HostConfig.NetworkMode)
-		t.Container.Docker.Network = mesosproto.ContainerInfo_DockerInfo_BRIDGE.Enum()
+		if (networkMode != "bridge" && networkMode != "" && networkMode != "default"){
+			t.Container.Docker.Parameters = append(t.Container.Docker.Parameters, &mesosproto.Parameter{Key: proto.String("net"), Value: proto.String(networkMode)})
+		}
 	}
 
 	if cpus := t.config.HostConfig.CPUShares; cpus > 0 {
@@ -151,6 +153,12 @@ func (t *Task) Build(slaveID string, offers map[string]*mesosproto.Offer) {
 		t.Command.Arguments = t.config.Cmd[1:]
 	}
 
+	if role := os.Getenv("SWARM_MESOS_ROLE"); role != "" {
+		for i := range t.Resources {
+			t.Resources[i].Role = proto.String(role)
+		}
+ 	}
+	
 	for key, value := range t.config.Labels {
 		t.Container.Docker.Parameters = append(t.Container.Docker.Parameters, &mesosproto.Parameter{Key: proto.String("label"), Value: proto.String(fmt.Sprintf("%s=%s", key, value))})
 	}
