@@ -17,7 +17,7 @@
   
 
 load cli_helpers
-NOTAUTHORIZED="Error response from daemon: Not authorized error. Tenant does not own container"
+NOTAUTHORIZED="Error response from daemon: No such container or the user is not authorized for this container:"
 @test "Check affinity:container==" {
     #skip
 	run docker -H $SWARM_HOST --config $DOCKER_CONFIG1 run -d --name frontend busybox true
