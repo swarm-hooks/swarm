@@ -17,7 +17,7 @@ import (
 	"strings"
 )
 
-const NOTAUTHORIZED_ERROR = "Not authorized error. Tenant does not own container %s."
+const NOTAUTHORIZED_ERROR = "No such container or the user is not authorized for this container: %s."
 
 //AuthenticationImpl - implementation of plugin API
 type DefaultNameScopingImpl struct {
