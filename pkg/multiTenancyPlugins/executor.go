@@ -1,18 +1,19 @@
 package multiTenancyPlugins
 
 import (
-	"net/http"
-	"os"
 	log "github.com/Sirupsen/logrus"
 	"github.com/docker/swarm/cluster"
-	"github.com/docker/swarm/pkg/multiTenancyPlugins/quota"
+	"github.com/docker/swarm/pkg/multiTenancyPlugins/apifilter"
 	"github.com/docker/swarm/pkg/multiTenancyPlugins/authentication"
 	"github.com/docker/swarm/pkg/multiTenancyPlugins/authorization"
-	"github.com/docker/swarm/pkg/multiTenancyPlugins/apifilter"
 	"github.com/docker/swarm/pkg/multiTenancyPlugins/flavors"
-	"github.com/docker/swarm/pkg/multiTenancyPlugins/naming"
 	"github.com/docker/swarm/pkg/multiTenancyPlugins/keystone"
+	"github.com/docker/swarm/pkg/multiTenancyPlugins/naming"
 	"github.com/docker/swarm/pkg/multiTenancyPlugins/pluginAPI"
+	"github.com/docker/swarm/pkg/multiTenancyPlugins/quota"
+	"github.com/docker/swarm/pkg/multiTenancyPlugins/utils"
+	"net/http"
+	"os"
 )
 
 //Executor - Entry point to multi-tenancy plugins
@@ -24,7 +25,7 @@ var startHandler pluginAPI.Handler
 func (*Executor) Handle(cluster cluster.Cluster, swarmHandler http.Handler) http.Handler {
 	if os.Getenv("SWARM_MULTI_TENANT") == "false" {
 		return swarmHandler
-	} 
+	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if os.Getenv("SWARM_MULTI_TENANT") == "false" {
 			swarmHandler.ServeHTTP(w, r)
@@ -43,7 +44,7 @@ func (*Executor) Init() {
 	if os.Getenv("SWARM_MULTI_TENANT") == "false" {
 		log.Debug("SWARM_MULTI_TENANT is false")
 		return
-	} 
+	}
 	quotaPlugin := quota.NewQuota(nil)
 	authorizationPlugin := authorization.NewAuthorization(quotaPlugin.Handle)
 	nameScoping := namescoping.NewNameScoping(authorizationPlugin.Handle)
