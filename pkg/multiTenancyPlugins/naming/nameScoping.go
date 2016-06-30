@@ -19,6 +19,8 @@ import (
 )
 
 const NOTAUTHORIZED_ERROR = "No such container or the user is not authorized for this container: %s."
+const CONTAINER_NOT_OWNED_INFO = "container not owned by current tenant info."
+const CONTAINER_REFERENCE_NOT_FOR_CONTAINER_INFO = "container reference does not match this containter info."
 
 //AuthenticationImpl - implementation of plugin API
 type DefaultNameScopingImpl struct {
@@ -138,25 +140,24 @@ func CheckContainerReferences(cluster cluster.Cluster, tenantId string, containe
 	volumesFrom := containerConfig.HostConfig.VolumesFrom
 
 	// create affinity array
-	affinityRef := make([]string, 0)
+	affinityLabelRefs := make([]string, 0)
+	affinityContainerRefs := make([]string, 0)
+	affinityLabelIndexs := make([]int, 0)
+	affinityContainerIndexs := make([]int, 0)
+
 	env := containerConfig.Env
-	var affinityIndex int
-	affinityLabelFirst := false
 	for i, e := range env {
 		if strings.HasPrefix(e, "affinity:") {
 			if strings.HasPrefix(e, "affinity:image==") {
 				break // ignore affinity for images
 			} else if strings.HasPrefix(e, "affinity:container==") {
 				containerRefIndex := strings.Index(e, "affinity:container==") + len("affinity:container==")
-				affinityRef = append(affinityRef, e[containerRefIndex:])
-				affinityIndex = i
-				break
+				affinityContainerRefs = append(affinityContainerRefs, e[containerRefIndex:])
+				affinityContainerIndexs = append(affinityContainerIndexs,i)
 			} else { // affinity:<label>:<value>
 				labelRefIndex := strings.Index(e, "affinity:") + len("affinity:")
-				affinityRef = append(affinityRef, e[labelRefIndex:])
-				affinityIndex = i
-				affinityLabelFirst = true
-				break
+				affinityLabelRefs = append(affinityLabelRefs, e[labelRefIndex:])
+				affinityLabelIndexs = append(affinityLabelIndexs,i)
 			}
 		}
 	}
@@ -171,10 +172,10 @@ func CheckContainerReferences(cluster cluster.Cluster, tenantId string, containe
 	var m map[string]string
 	var err error
 	containerRefs := make([]string, 0)
-	containerRefs = append(containerRefs, affinityRef...)
+	containerRefs = append(containerRefs, affinityContainerRefs...)
 	containerRefs = append(containerRefs, volumesFrom...)
 	containerRefs = append(containerRefs, links...)
-	if m, err = getIDsFromContainerReferences(cluster, tenantId, containerRefs, affinityLabelFirst); err != nil {
+	if m, err = getIDsFromContainerReferences(cluster, tenantId, containerRefs, affinityLabelRefs); err != nil {
 		return err
 	}
 	// update containerConfig
@@ -183,9 +184,13 @@ func CheckContainerReferences(cluster cluster.Cluster, tenantId string, containe
 		containerConfig.HostConfig.VolumesFrom[i] = m[k]
 	}
 	// update affinity
-	if len(affinityRef) > 0 {
-		containerConfig.Env[affinityIndex] = "affinity:container==" + m[affinityRef[0]]
+	for i,k := range affinityContainerRefs {
+		containerConfig.Env[affinityContainerIndexs[i]] = "affinity:container==" + m[k]
 	}
+	for i,k := range affinityLabelRefs {
+		containerConfig.Env[affinityLabelIndexs[i]] = "affinity:container==" + m[k]
+	}
+
 	// update links
 	links = make([]string, 0)
 	linkSet := make(map[string]bool)
@@ -207,24 +212,24 @@ func CheckContainerReferences(cluster cluster.Cluster, tenantId string, containe
 	return nil
 
 }
-func getIDsFromContainerReferences(cluster cluster.Cluster, tenantId string, containerReferences []string, affinityLabelFirst bool) (map[string]string, error) {
+func getIDsFromContainerReferences(cluster cluster.Cluster, tenantId string, containerReferences []string, affinityLabelReferences []string) (map[string]string, error) {
 	// containerReferences is a array of container references of the form long id, short id, or name
-	// if affinityLabelFirst is true the first element of containerReferences an affinity label reference of the form label:value
 	m := make(map[string]string)
 	for _, containerReference := range containerReferences {
 		m[containerReference] = ""
 	}
 	for _, container := range cluster.Containers() {
 		if container.Labels[headers.TenancyLabel] == tenantId {
-			for i, containerReference := range containerReferences {
-				var err error
-				var containerId string
-				if affinityLabelFirst && i == 0 {
-					containerId, err = getIDFromContainerLabel(container, tenantId, containerReference)
-				} else {
-					containerId, err = getContainerId(container, tenantId, containerReference)
+			var err error
+			var containerId string
+			for _, containerReference := range containerReferences {
+				if containerId, err = getContainerId(container, tenantId, containerReference); err == nil {
+					m[containerReference] = containerId
+					break
 				}
-				if err == nil {
+			}
+			for _, containerReference := range affinityLabelReferences {
+				if containerId, err = getIDFromContainerLabel(container, tenantId, containerReference); err == nil {
 					m[containerReference] = containerId
 					break
 				}
@@ -237,12 +242,19 @@ func getIDsFromContainerReferences(cluster cluster.Cluster, tenantId string, con
 			return nil, err
 		}
 	}
+	for _, containerReference := range affinityLabelReferences {
+		if m[containerReference] == "" {
+			err := fmt.Errorf(NOTAUTHORIZED_ERROR, containerReference)
+			return nil, err
+		}
+	}
+
 	return m, nil
 }
 
 func getIDFromContainerLabel(container *cluster.Container, tenantId string, affinityLabelValue string) (string, error) {
 	if container.Labels[headers.TenancyLabel] != tenantId {
-		return "", errors.New("not authorized to access this container.")
+		return "", errors.New(CONTAINER_NOT_OWNED_INFO)
 	}
 	// affinityLabelValue is in the form label==value
 	kv := strings.Split(affinityLabelValue, "==")
@@ -251,12 +263,12 @@ func getIDFromContainerLabel(container *cluster.Container, tenantId string, affi
 			return container.Info.ID, nil
 		}
 	}
-	return "", errors.New("label==value does not match this containter.")
+	return "", errors.New(CONTAINER_REFERENCE_NOT_FOR_CONTAINER_INFO)
 }
 
 func getContainerId(container *cluster.Container, tenantId string, containerReference string) (string, error) {
 	if container.Labels[headers.TenancyLabel] != tenantId {
-		return "", errors.New("not authorized to access this container.")
+		return "", errors.New(CONTAINER_NOT_OWNED_INFO)
 	}
 	// check for long id
 	if container.Info.ID == containerReference {
@@ -275,5 +287,5 @@ func getContainerId(container *cluster.Container, tenantId string, containerRefe
 	if strings.HasPrefix(container.Info.ID, containerReference) {
 		return container.Info.ID, nil
 	}
-	return "", errors.New("containerReference does not match this containter.")
+	return "", errors.New(CONTAINER_REFERENCE_NOT_FOR_CONTAINER_INFO)
 }
