@@ -21,16 +21,18 @@ import (
 const NOTAUTHORIZED_ERROR = "No such container or the user is not authorized for this container: %s."
 const CONTAINER_NOT_OWNED_INFO = "container not owned by current tenant info."
 const CONTAINER_REFERENCE_NOT_FOR_CONTAINER_INFO = "container reference does not match this containter info."
-type affinityType int 
+
+type affinityType int
+
 const (
 	AFFINITY_CONTAINER affinityType = 1 + iota
-	AFFINITY_LABEL 
+	AFFINITY_LABEL
 )
+
 type affinityRefType struct {
 	affinityElementType affinityType
-	envElementIndex int
+	envElementIndex     int
 }
-
 
 //AuthenticationImpl - implementation of plugin API
 type DefaultNameScopingImpl struct {
@@ -143,8 +145,6 @@ func (nameScoping *DefaultNameScopingImpl) Handle(command utils.CommandEnum, clu
 	return nil
 }
 
-
-
 func CheckContainerReferences(cluster cluster.Cluster, tenantId string, containerConfig *dockerclient.ContainerConfig) error {
 	log.Debugf("CheckContainerReferences containerConfig: %+v", containerConfig)
 	// create arrays of container references to pass to getIDsFromContainerReferences
@@ -159,12 +159,12 @@ func CheckContainerReferences(cluster cluster.Cluster, tenantId string, containe
 			} else if strings.HasPrefix(envElement, "affinity:container==") {
 				containerRefIndex := strings.Index(envElement, "affinity:container==") + len("affinity:container==")
 				containerRef := envElement[containerRefIndex:]
-				affinityFromEnvMap[containerRef] = &affinityRefType{AFFINITY_CONTAINER,envElementIndex}
+				affinityFromEnvMap[containerRef] = &affinityRefType{AFFINITY_CONTAINER, envElementIndex}
 			} else { // affinity:<label>:<value>
 				labelRefIndex := strings.Index(envElement, "affinity:") + len("affinity:")
 				containerRef := envElement[labelRefIndex:]
-				affinityFromEnvMap[containerRef] = &affinityRefType{AFFINITY_LABEL,envElementIndex}
-				
+				affinityFromEnvMap[containerRef] = &affinityRefType{AFFINITY_LABEL, envElementIndex}
+
 			}
 		}
 	}
@@ -192,21 +192,20 @@ func CheckContainerReferences(cluster cluster.Cluster, tenantId string, containe
 	for i, k := range containerConfig.HostConfig.VolumesFrom {
 		containerConfig.HostConfig.VolumesFrom[i] = containerReferenceToIdMap[k]
 	}
-		
+
 	// update affinity
-	for containerRef,affinityRef := range affinityFromEnvMap {
+	for containerRef, affinityRef := range affinityFromEnvMap {
 		if affinityRef.affinityElementType == AFFINITY_CONTAINER {
-			containerConfig.Env[affinityRef.envElementIndex] = "affinity:container==" + containerReferenceToIdMap[containerRef]	
+			containerConfig.Env[affinityRef.envElementIndex] = "affinity:container==" + containerReferenceToIdMap[containerRef]
 		} else {
 			containerConfig.Env[affinityRef.envElementIndex] = "affinity:container==" + containerReferenceToIdMap[containerRef]
-		}	
-	}	
-
+		}
+	}
 
 	// update links
 	// We want to create an array of links with no duplicates.  Ideally, to do this we would use a set however
 	// go does not support a native set structure.  Rather we use a map, named linkSet, to accumulated non duplicate links.
-	// Only the keys are important in linkSet;  the values are meaningless. 
+	// Only the keys are important in linkSet;  the values are meaningless.
 	// Once linkSet is created we generate the links array from linkSet.
 	links := make([]string, 0)
 	// We want to generate a set of links with no dugo does not support a native set, s
@@ -238,7 +237,7 @@ func getIDsFromContainerReferences(cluster cluster.Cluster, tenantId string, con
 		containerReferenceToIdMap[containerReference] = ""
 	}
 	// loop through all the containers to find the containerIds that at associated with the container references.
-	// eligible containers must belong to the tenant 
+	// eligible containers must belong to the tenant
 	for _, container := range cluster.Containers() {
 		if container.Labels[headers.TenancyLabel] == tenantId {
 			var err error
@@ -251,19 +250,19 @@ func getIDsFromContainerReferences(cluster cluster.Cluster, tenantId string, con
 				}
 			}
 			// look for containerReferences found in affinity
-			for containerReference,affinityRef := range affinityFromEnvMap {
+			for containerReference, affinityRef := range affinityFromEnvMap {
 				if affinityRef.affinityElementType == AFFINITY_CONTAINER {
 					if containerId, err = getContainerId(container, tenantId, containerReference); err == nil {
 						containerReferenceToIdMap[containerReference] = containerId
 						break
 					}
-	
+
 				} else {
 					if containerId, err = getIDFromContainerLabel(container, tenantId, containerReference); err == nil {
 						containerReferenceToIdMap[containerReference] = containerId
 						break
 					}
-				}	
+				}
 			}
 
 		}
@@ -276,7 +275,7 @@ func getIDsFromContainerReferences(cluster cluster.Cluster, tenantId string, con
 			return nil, err
 		}
 	}
-	for containerReference, _ := range affinityFromEnvMap {
+	for containerReference := range affinityFromEnvMap {
 		if containerReferenceToIdMap[containerReference] == "" {
 			err := fmt.Errorf(NOTAUTHORIZED_ERROR, containerReference)
 			return nil, err
