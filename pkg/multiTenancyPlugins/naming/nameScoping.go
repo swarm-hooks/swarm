@@ -20,6 +20,16 @@ import (
 const NOTAUTHORIZED_ERROR = "No such container or the user is not authorized for this container: %s."
 const CONTAINER_NOT_OWNED_INFO = "container not owned by current tenant info."
 const CONTAINER_REFERENCE_NOT_FOR_CONTAINER_INFO = "container reference does not match this containter info."
+type affinityType int 
+const (
+	AFFINITY_CONTAINER affinityType = 1 + iota
+	AFFINITY_LABEL 
+)
+type affinityRefType struct {
+	affinityElementType affinityType
+	envElementIndex int
+}
+
 
 //AuthenticationImpl - implementation of plugin API
 type DefaultNameScopingImpl struct {
@@ -133,123 +143,147 @@ func (nameScoping *DefaultNameScopingImpl) Handle(command utils.CommandEnum, clu
 	return nil
 }
 
+
+
 func CheckContainerReferences(cluster cluster.Cluster, tenantId string, containerConfig *dockerclient.ContainerConfig) error {
 	log.Debugf("CheckContainerReferences containerConfig: %+v", containerConfig)
 	// create arrays of container references to pass to getIDsFromContainerReferences
-	// create volumesFrom array
-	volumesFrom := containerConfig.HostConfig.VolumesFrom
 
 	// create affinity array
-	affinityLabelRefs := make([]string, 0)
-	affinityContainerRefs := make([]string, 0)
-	affinityLabelIndexs := make([]int, 0)
-	affinityContainerIndexs := make([]int, 0)
-
+	affinityFromEnvMap := make(map[string]*affinityRefType)
 	env := containerConfig.Env
-	for i, e := range env {
-		if strings.HasPrefix(e, "affinity:") {
-			if strings.HasPrefix(e, "affinity:image==") {
-				break // ignore affinity for images
-			} else if strings.HasPrefix(e, "affinity:container==") {
-				containerRefIndex := strings.Index(e, "affinity:container==") + len("affinity:container==")
-				affinityContainerRefs = append(affinityContainerRefs, e[containerRefIndex:])
-				affinityContainerIndexs = append(affinityContainerIndexs,i)
+	for envElementIndex, envElement := range env {
+		if strings.HasPrefix(envElement, "affinity:") {
+			if strings.HasPrefix(envElement, "affinity:image==") {
+				continue // ignore affinity for images
+			} else if strings.HasPrefix(envElement, "affinity:container==") {
+				containerRefIndex := strings.Index(envElement, "affinity:container==") + len("affinity:container==")
+				containerRef := envElement[containerRefIndex:]
+				affinityFromEnvMap[containerRef] = &affinityRefType{AFFINITY_CONTAINER,envElementIndex}
 			} else { // affinity:<label>:<value>
-				labelRefIndex := strings.Index(e, "affinity:") + len("affinity:")
-				affinityLabelRefs = append(affinityLabelRefs, e[labelRefIndex:])
-				affinityLabelIndexs = append(affinityLabelIndexs,i)
+				labelRefIndex := strings.Index(envElement, "affinity:") + len("affinity:")
+				containerRef := envElement[labelRefIndex:]
+				affinityFromEnvMap[containerRef] = &affinityRefType{AFFINITY_LABEL,envElementIndex}
+				
 			}
 		}
 	}
 
 	// create links array
-	links := make([]string, 0)
+	linkContainerRefs := make([]string, 0)
 	for _, link := range containerConfig.HostConfig.Links {
-		linkSplit := strings.SplitN(link, ":", 2)
-		links = append(links, strings.TrimSpace(linkSplit[0]))
+		// link in form [container reference]:[alias]
+		// : and alias are optional
+		containerRef_alias := strings.SplitN(link, ":", 2)
+		// linkSplit[0] == container reference
+		linkContainerRefs = append(linkContainerRefs, strings.TrimSpace(containerRef_alias[0]))
 	}
 
-	var m map[string]string
 	var err error
+	var containerReferenceToIdMap map[string]string
 	containerRefs := make([]string, 0)
-	containerRefs = append(containerRefs, affinityContainerRefs...)
-	containerRefs = append(containerRefs, volumesFrom...)
-	containerRefs = append(containerRefs, links...)
-	if m, err = getIDsFromContainerReferences(cluster, tenantId, containerRefs, affinityLabelRefs); err != nil {
+	containerRefs = append(containerRefs, containerConfig.HostConfig.VolumesFrom...)
+	containerRefs = append(containerRefs, linkContainerRefs...)
+	if containerReferenceToIdMap, err = getIDsFromContainerReferences(cluster, tenantId, containerRefs, affinityFromEnvMap); err != nil {
 		return err
 	}
-	// update containerConfig
+	// ******************update containerConfig******************
 	// update VolumesFrom
 	for i, k := range containerConfig.HostConfig.VolumesFrom {
-		containerConfig.HostConfig.VolumesFrom[i] = m[k]
+		containerConfig.HostConfig.VolumesFrom[i] = containerReferenceToIdMap[k]
 	}
+		
 	// update affinity
-	for i,k := range affinityContainerRefs {
-		containerConfig.Env[affinityContainerIndexs[i]] = "affinity:container==" + m[k]
-	}
-	for i,k := range affinityLabelRefs {
-		containerConfig.Env[affinityLabelIndexs[i]] = "affinity:container==" + m[k]
-	}
+	for containerRef,affinityRef := range affinityFromEnvMap {
+		if affinityRef.affinityElementType == AFFINITY_CONTAINER {
+			containerConfig.Env[affinityRef.envElementIndex] = "affinity:container==" + containerReferenceToIdMap[containerRef]	
+		} else {
+			containerConfig.Env[affinityRef.envElementIndex] = "affinity:container==" + containerReferenceToIdMap[containerRef]
+		}	
+	}	
+
 
 	// update links
-	links = make([]string, 0)
-	linkSet := make(map[string]bool)
+	// We want to create an array of links with no duplicates.  Ideally, to do this we would use a set however
+	// go does not support a native set structure.  Rather we use a map, named linkSet, to accumulated non duplicate links.
+	// Only the keys are important in linkSet;  the values are meaningless. 
+	// Once linkSet is created we generate the links array from linkSet.
+	links := make([]string, 0)
+	// We want to generate a set of links with no dugo does not support a native set, s
+	linkSet := make(map[string]string)
 	for _, link := range containerConfig.HostConfig.Links {
-		linkSplit := strings.SplitN(link, ":", 2)
-		containerIdName := strings.TrimSpace(linkSplit[0])
-		containerId := m[containerIdName]
+		containerRef_alias := strings.SplitN(link, ":", 2)
+		containerIdName := strings.TrimSpace(containerRef_alias[0])
+		containerId := containerReferenceToIdMap[containerIdName]
+		linkSet[containerId] = ""
 		if containerId != containerIdName {
-			linkSet[containerId+":"+containerIdName] = true
+			linkSet[containerId+":"+containerIdName] = ""
 		}
-		if len(linkSplit) > 1 {
-			linkSet[containerId+":"+strings.TrimSpace(linkSplit[1])] = true
+		if len(containerRef_alias) > 1 {
+			linkSet[containerId+":"+strings.TrimSpace(containerRef_alias[1])] = ""
 		}
-		for k := range linkSet {
-			links = append(links, k)
-		}
+	}
+	for containerId_alias := range linkSet {
+		links = append(links, containerId_alias)
 	}
 	containerConfig.HostConfig.Links = links
 	return nil
 
 }
-func getIDsFromContainerReferences(cluster cluster.Cluster, tenantId string, containerReferences []string, affinityLabelReferences []string) (map[string]string, error) {
+func getIDsFromContainerReferences(cluster cluster.Cluster, tenantId string, containerReferences []string, affinityFromEnvMap map[string]*affinityRefType) (map[string]string, error) {
 	// containerReferences is a array of container references of the form long id, short id, or name
-	m := make(map[string]string)
+	// containerReferenceToIdMap is a map from the containerReferences to the containterId
+	containerReferenceToIdMap := make(map[string]string)
 	for _, containerReference := range containerReferences {
-		m[containerReference] = ""
+		containerReferenceToIdMap[containerReference] = ""
 	}
+	// loop through all the containers to find the containerIds that at associated with the container references.
+	// eligible containers must belong to the tenant 
 	for _, container := range cluster.Containers() {
 		if container.Labels[headers.TenancyLabel] == tenantId {
 			var err error
 			var containerId string
+			// look for containerReference found in volumes_from and links
 			for _, containerReference := range containerReferences {
 				if containerId, err = getContainerId(container, tenantId, containerReference); err == nil {
-					m[containerReference] = containerId
+					containerReferenceToIdMap[containerReference] = containerId
 					break
 				}
 			}
-			for _, containerReference := range affinityLabelReferences {
-				if containerId, err = getIDFromContainerLabel(container, tenantId, containerReference); err == nil {
-					m[containerReference] = containerId
-					break
-				}
+			// look for containerReferences found in affinity
+			for containerReference,affinityRef := range affinityFromEnvMap {
+				if affinityRef.affinityElementType == AFFINITY_CONTAINER {
+					if containerId, err = getContainerId(container, tenantId, containerReference); err == nil {
+						containerReferenceToIdMap[containerReference] = containerId
+						break
+					}
+	
+				} else {
+					if containerId, err = getIDFromContainerLabel(container, tenantId, containerReference); err == nil {
+						containerReferenceToIdMap[containerReference] = containerId
+						break
+					}
+				}	
 			}
+
 		}
 	}
+	// check that all container refences have been discovered.
+	// if not return an error
 	for _, containerReference := range containerReferences {
-		if m[containerReference] == "" {
+		if containerReferenceToIdMap[containerReference] == "" {
 			err := fmt.Errorf(NOTAUTHORIZED_ERROR, containerReference)
 			return nil, err
 		}
 	}
-	for _, containerReference := range affinityLabelReferences {
-		if m[containerReference] == "" {
+	for containerReference, _ := range affinityFromEnvMap {
+		if containerReferenceToIdMap[containerReference] == "" {
 			err := fmt.Errorf(NOTAUTHORIZED_ERROR, containerReference)
 			return nil, err
 		}
 	}
 
-	return m, nil
+	return containerReferenceToIdMap, nil
 }
 
 func getIDFromContainerLabel(container *cluster.Container, tenantId string, affinityLabelValue string) (string, error) {
@@ -257,9 +291,9 @@ func getIDFromContainerLabel(container *cluster.Container, tenantId string, affi
 		return "", errors.New(CONTAINER_NOT_OWNED_INFO)
 	}
 	// affinityLabelValue is in the form label==value
-	kv := strings.Split(affinityLabelValue, "==")
-	for k, v := range container.Config.Labels {
-		if k == kv[0] && v == kv[1] {
+	label_value := strings.Split(affinityLabelValue, "==")
+	for label, value := range container.Config.Labels {
+		if label == label_value[0] && value == label_value[1] {
 			return container.Info.ID, nil
 		}
 	}
