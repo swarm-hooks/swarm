@@ -207,23 +207,26 @@ func CheckContainerReferences(cluster cluster.Cluster, tenantId string, containe
 	// go does not support a native set structure.  Rather we use a map, named linkSet, to accumulated non duplicate links.
 	// Only the keys are important in linkSet;  the values are meaningless.
 	// Once linkSet is created we generate the links array from linkSet.
-	links := make([]string, 0)
-	// We want to generate a set of links with no dugo does not support a native set, s
-	linkSet := make(map[string]string)
+	// We want to generate a super set of links with no duplicates.  However go does not support a native set,
+	// do we use map that points to an empty structure to simulate a set.
+	linkSet := make(map[string]*struct{})
 	for _, link := range containerConfig.HostConfig.Links {
 		containerRef_alias := strings.SplitN(link, ":", 2)
 		containerIdName := strings.TrimSpace(containerRef_alias[0])
 		containerId := containerReferenceToIdMap[containerIdName]
-		linkSet[containerId] = ""
+		linkSet[containerId] = nil
 		if containerId != containerIdName {
-			linkSet[containerId+":"+containerIdName] = ""
+			linkSet[containerId+":"+containerIdName] = nil
 		}
 		if len(containerRef_alias) > 1 {
-			linkSet[containerId+":"+strings.TrimSpace(containerRef_alias[1])] = ""
+			linkSet[containerId+":"+strings.TrimSpace(containerRef_alias[1])] = nil
 		}
 	}
+	links := make([]string, len(linkSet))
+	linksIndex := 0
 	for containerId_alias := range linkSet {
-		links = append(links, containerId_alias)
+		links[linksIndex] = containerId_alias
+		linksIndex++
 	}
 	containerConfig.HostConfig.Links = links
 	return nil
