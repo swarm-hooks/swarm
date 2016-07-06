@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	log "github.com/Sirupsen/logrus"
-	apitypes "github.com/docker/engine-api/types"
 	"github.com/docker/swarm/cluster"
 	"github.com/docker/swarm/pkg/multiTenancyPlugins/headers"
 	"github.com/docker/swarm/pkg/multiTenancyPlugins/pluginAPI"
@@ -132,49 +131,22 @@ func (nameScoping *DefaultNameScopingImpl) Handle(command utils.CommandEnum, clu
 		return nameScoping.nextHandler(command, cluster, w, r, swarmHandler)
 
 	case utils.NETWORK_CONNECT, utils.NETWORK_DISCONNECT:
-		if netName := mux.Vars(r)["networkid"]; netName != "" {
-			netID := getNetworkID(cluster, r, netName)
-			r.URL.Path = strings.Replace(r.URL.Path, netName, netID, 1)
-			mux.Vars(r)["networkid"] = netID
-			defer r.Body.Close()
-			if reqBody, _ := ioutil.ReadAll(r.Body); len(reqBody) > 0 {
-				var request apitypes.NetworkConnect
-				if err := json.NewDecoder(bytes.NewReader(reqBody)).Decode(&request); err != nil {
-					return err
-				}
-				conatinerID := getContainerID(cluster, r, request.Container)
-				request.Container = conatinerID
-				var buf bytes.Buffer
-				if err := json.NewEncoder(&buf).Encode(request); err != nil {
-					return err
-				}
-				// set ContentLength for new  body
-				r.ContentLength = int64(len(buf.Bytes()))				
-				r, _ = utils.ModifyRequest(r, bytes.NewReader(buf.Bytes()), "", "")
-			}
-	case utils.NETWORK_CREATE:
-		defer r.Body.Close()
-		if reqBody, _ := ioutil.ReadAll(r.Body); len(reqBody) > 0 {
-			var request apitypes.NetworkCreate
-			if err := json.NewDecoder(bytes.NewReader(reqBody)).Decode(&request); err != nil {
-				return err
-			}
-			request.Name = r.Header.Get(headers.AuthZTenantIdHeaderName) + request.Name
-			var buf bytes.Buffer
-			if err := json.NewEncoder(&buf).Encode(request); err != nil {
-				return err
-			}
-			r, _ = utils.ModifyRequest(r, bytes.NewReader(buf.Bytes()), "", "")
+		case c.NETWORK_CONNECT, c.NETWORK_DISCONNECT:
+		if err := ConnectDisconnect(cluster, r); err != nil {
+			return err
 		}
 		return nameScoping.nextHandler(command, cluster, w, r, swarmHandler)
-
-	case utils.NETWORK_INSPECT, utils.NETWORK_DELETE:
-		if netName := mux.Vars(r)["networkid"]; netName != "" {
-			netID := getNetworkID(cluster, r, netName)
-			r.URL.Path = strings.Replace(r.URL.Path, netName, netID, 1)
-			mux.Vars(r)["networkid"] = netID
+		
+	case c.NETWORK_CREATE:
+		if err := CreateNetwork(cluster, r); err != nil {
+			return err
 		}
 		return nameScoping.nextHandler(command, cluster, w, r, swarmHandler)
+		
+	case c.NETWORK_INSPECT, c.NETWORK_DELETE:
+		DeleteInspect(cluster, r)
+		return nameScoping.nextHandler(command, cluster, w, r, swarmHandler)
+		
 	case utils.PS, utils.JSON, utils.NETWORKS_LIST, utils.INFO, utils.EVENTS, utils.IMAGES_JSON:
 		return nameScoping.nextHandler(command, cluster, w, r, swarmHandler)
 		
