@@ -239,15 +239,21 @@ func commandParser(r *http.Request) string {
 			log.Debug("images" + imagesParams[3])
 			return "images" + imagesParams[3] //S
 		}
+		if strings.HasSuffix(r.URL.Path, "/networks") {
+			return "networkslist"
+		}
+		if len(networksParams) == 4 && networksParams[3] != "" {
+			if networksParams[3] == "create"{
+				return "networkcreate"
+			}		
+			return "networkinspect"
+		} else if len(networksParams) == 4 {
+			return "network" + networksParams[2]
+		}
 		if len(clusterParams) == 3 {
 			log.Debug("A3")
 			log.Debug(" clusterParams[0] = ", clusterParams[0], " clusterParams[1] = ", clusterParams[1], " clusterParams[2] = ", clusterParams[2], " len(imagesParams) = ", len(imagesParams))
 			return clusterParams[2]
-		}
-		if len(networksParams) == 4 && networksParams[3] != "" {
-			return "networkinspect"
-		} else if len(networksParams) == 4 && networksParams[1] == "" && networksParams[2] == "" && networksParams[3] == "" {
-			return "networkslist" //S
 		}
 	}
 	return "This is not supported yet and will end up in the default of the Switch"
