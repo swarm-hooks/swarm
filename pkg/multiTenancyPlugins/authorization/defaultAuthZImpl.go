@@ -13,7 +13,6 @@ import (
 	"github.com/docker/swarm/pkg/multiTenancyPlugins/pluginAPI"
 	"github.com/samalba/dockerclient"
 	log "github.com/Sirupsen/logrus"
-	apitypes "github.com/docker/engine-api/types"
 	"github.com/docker/swarm/cluster"
 	"github.com/docker/swarm/pkg/multiTenancyPlugins/headers"
 	"github.com/docker/swarm/pkg/multiTenancyPlugins/utils"
@@ -132,23 +131,8 @@ func (defaultauthZ *DefaultAuthZImpl) Handle(command utils.CommandEnum, cluster 
 		return defaultauthZ.nextHandler(command, cluster, w, r, swarmHandler)
 		
 	case utils.NETWORK_CONNECT, utils.NETWORK_DISCONNECT:
-		if !utils.IsResourceOwner(cluster, r.Header.Get(headers.AuthZTenantIdHeaderName), mux.Vars(r)["networkid"], "network") {
-			return errors.New("Not authorized or no such network!")
-		}
-		defer r.Body.Close()
-		if reqBody, _ := ioutil.ReadAll(r.Body); len(reqBody) > 0 {
-				var request apitypes.NetworkConnect
-				if err := json.NewDecoder(bytes.NewReader(reqBody)).Decode(&request); err != nil {
-         			return err
-				}
-				if !utils.IsResourceOwner(cluster, r.Header.Get(headers.AuthZTenantIdHeaderName), request.Container, "container") {
-					return errors.New("Not Authorized or no such resource!")
-				}
-				var buf bytes.Buffer
-				if err := json.NewEncoder(&buf).Encode(request); err != nil {
-					return err
-				}
-				r, _ = utils.ModifyRequest(r, bytes.NewReader(buf.Bytes()), "", "")
+		if err := ConnectDisconnect(cluster, r); err != nil {
+			return err
 		}
 		return defaultauthZ.nextHandler(command, cluster, w, r, swarmHandler)
 		
