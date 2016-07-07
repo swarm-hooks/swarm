@@ -1,39 +1,46 @@
 package apifilter
 
-import "github.com/docker/swarm/pkg/multiTenancyPlugins/utils"
+import (
+	"encoding/json"
+	log "github.com/Sirupsen/logrus"
+	c "github.com/docker/swarm/pkg/multiTenancyPlugins/utils"
+	"os"
+)
 
-var supportedAPIsMap map[utils.CommandEnum]bool
+var supportedAPIsMap map[c.CommandEnum]bool
 
-func init() {
-	supportedAPIsMap = make(map[utils.CommandEnum]bool)
+func initSupportedAPIsMap() {
+	supportedAPIsMap = make(map[c.CommandEnum]bool)
 	//containers
-	supportedAPIsMap["containerscreate"] = true
-	supportedAPIsMap["containersjson"] = true
-	supportedAPIsMap["containersps"] = true
+	supportedAPIsMap[c.CONTAINER_CREATE] = true
+	supportedAPIsMap[c.CONTAINER_JSON] = true
+	supportedAPIsMap[c.PS] = true
 	//container
-	supportedAPIsMap["containerstart"] = true
-	supportedAPIsMap["containerarchive"] = true
-	supportedAPIsMap["containerattach"] = true
+	supportedAPIsMap[c.CONTAINER_START] = true
+	supportedAPIsMap[c.CONTAINER_ARCHIVE] = true
+	supportedAPIsMap[c.CONTAINER_ATTACH] = true
 	supportedAPIsMap["containerbuild"] = true
-	supportedAPIsMap["containercopy"] = true
-	supportedAPIsMap["containerchanges"] = true
-	supportedAPIsMap["containerevents"] = false
-	supportedAPIsMap["containerexec"] = false
-	supportedAPIsMap["containerexport"] = false
-	supportedAPIsMap["containerjson"] = true
-	supportedAPIsMap["containerrestart"] = true
-	supportedAPIsMap["containerkill"] = true
-	supportedAPIsMap["containerlogs"] = true
-	supportedAPIsMap["containerpause"] = true
+	supportedAPIsMap[c.CONTAINER_COPY] = true
+	supportedAPIsMap[c.CONTAINER_CHANGES] = true
+	supportedAPIsMap[c.EVENTS] = true
+	supportedAPIsMap[c.CONTAINER_EXEC] = false
+	supportedAPIsMap[c.CONTAINER_EXPORT] = false
+	supportedAPIsMap[c.CONTAINER_JSON] = true
+	supportedAPIsMap[c.CONTAINER_RESTART] = true
+	supportedAPIsMap[c.CONTAINER_KILL] = true
+	supportedAPIsMap[c.CONTAINER_LOGS] = true
+	supportedAPIsMap[c.CONTAINER_PAUSE] = true
 	supportedAPIsMap["containertport"] = true
-	supportedAPIsMap["containerrename"] = false
-	supportedAPIsMap["containerdelete"] = true
-	supportedAPIsMap["containerstop"] = true
-	supportedAPIsMap["containertop"] = true
-	supportedAPIsMap["containerunpause"] = true
-	supportedAPIsMap["containerupdate"] = true
-	supportedAPIsMap["containerwait"] = true
-	supportedAPIsMap["listContainers"] = true
+	supportedAPIsMap[c.CONTAINER_RENAME] = false
+	supportedAPIsMap[c.CONTAINER_DELETE] = true
+	supportedAPIsMap[c.CONTAINER_STOP] = true
+	supportedAPIsMap[c.CONTAINER_TOP] = true
+	supportedAPIsMap[c.CONTAINER_UNPAUSE] = true
+	supportedAPIsMap[c.CONTAINER_UPDATE] = true
+	supportedAPIsMap[c.CONTAINER_WAIT] = true
+	supportedAPIsMap[c.JSON] = true
+	supportedAPIsMap[c.CONTAINER_STATS] = true
+	supportedAPIsMap[c.CONTAINER_RESIZE] = false
 	//image
 	supportedAPIsMap["imagecommit"] = false
 	supportedAPIsMap["imagehistory"] = false
@@ -45,39 +52,73 @@ func init() {
 	supportedAPIsMap["imagesave"] = false
 	supportedAPIsMap["imagesearch"] = false
 	supportedAPIsMap["imagetag"] = false
+	supportedAPIsMap[c.IMAGES_JSON] = true //listImages
 	//server
 	supportedAPIsMap["serverlogin"] = false
 	supportedAPIsMap["serverlogout"] = false
 	//Network
-	supportedAPIsMap["connectNetwork"] = false
-	supportedAPIsMap["createNetwork"] = true
-	supportedAPIsMap["disconnectNetwork"] = false
-	supportedAPIsMap["listNetworks"] = true
-	supportedAPIsMap["networkremove"] = false
+	supportedAPIsMap["networkslist"] = true
+	supportedAPIsMap["networkinspect"] = true
+	supportedAPIsMap["networkconnect"] = true
+	supportedAPIsMap["networkdisconnect"] = true
+	supportedAPIsMap["networkcreate"] = true
+	supportedAPIsMap["networkdelete"] = true
 	//Volume
 	supportedAPIsMap["createVolume"] = false
 	supportedAPIsMap["inspectVolume"] = false
 	supportedAPIsMap["listVolume"] = false
 	supportedAPIsMap["removeVolume"] = false
+
 	//general
-	supportedAPIsMap["info"] = true
-	supportedAPIsMap["version"] = false
+	supportedAPIsMap[c.INFO] = true
+	supportedAPIsMap[c.VERSION] = false
 
 	//new
 	supportedAPIsMap["ping"] = false                  //_ping
-	supportedAPIsMap["listImages"] = false            //images/json
 	supportedAPIsMap["imagesviz"] = false             //notImplementedHandler
 	supportedAPIsMap["getRepositoriesImages"] = false //images/get	(Get a tarball containing all images)
 	supportedAPIsMap["getRepositoryImages"] = false   //images/{name:.*}/get	(Get a tarball containing all images in a repository)
 	supportedAPIsMap["inspectImage"] = false          //images/{name:.*}/json
-	supportedAPIsMap["containerstats"] = false        //containers/{name:.*}/stats
 	supportedAPIsMap["execjson"] = false              //exec/{execid:.*}/json
-	supportedAPIsMap["networkinspect"] = false        //networks/{networkid:.*}"
 	supportedAPIsMap["auth"] = false                  //auth
 	supportedAPIsMap["commit"] = false                //commit
 	supportedAPIsMap["build"] = false                 //build
-	supportedAPIsMap["containerresize"] = false       //containers/{name:.*}/resize
+	supportedAPIsMap[c.CONTAINER_RESIZE] = false      //containers/{name:.*}/resize
 	supportedAPIsMap["execstart"] = false             //exec/{execid:.*}/start
 	supportedAPIsMap["execresize"] = false            //exec/{execid:.*}/resize
-	//images/create:                     (Create an image) is it equal to imagepull??
+	//images/create:                    (Create an image) is it equal to imagepull??
+}
+
+func modifySupportedWithDisabledApi() {
+	type Filter struct {
+		Disableapi []c.CommandEnum
+	}
+	var filter Filter
+	var f = os.Getenv("SWARM_APIFILTER_FILE")
+	if f == "" {
+		f = "apifilter.json"
+	}
+
+	file, err := os.Open(f)
+	if err != nil {
+		log.Info("no API FILTER file")
+		return
+	}
+
+	log.Info("SWARM_APIFILTER_FILE: ", f)
+
+	decoder := json.NewDecoder(file)
+	err = decoder.Decode(&filter)
+	if err != nil {
+		log.Fatal("Error in apifilter decode:", err)
+		panic("Error: could not decode apifilter.json")
+	}
+	log.Infof("filter %+v", filter)
+	for _, e := range filter.Disableapi {
+		if supportedAPIsMap[e] {
+			log.Infof("disable %+v", e)
+			supportedAPIsMap[e] = false
+		}
+
+	}
 }

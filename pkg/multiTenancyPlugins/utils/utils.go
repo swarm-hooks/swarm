@@ -14,7 +14,6 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/docker/swarm/cluster"
-
 	"github.com/docker/swarm/pkg/multiTenancyPlugins/headers"
 	"github.com/gorilla/mux"
 )
@@ -50,18 +49,27 @@ func ModifyRequest(r *http.Request, body io.Reader, urlStr string, containerID s
 	return r, nil
 }
 
-func getResourceId(r *http.Request) string {
-	return mux.Vars(r)["name"]
-}
-
 //Assumes ful ID was injected
-func IsOwner(cluster cluster.Cluster, tenantId string, r *http.Request) bool {
-	for _, container := range cluster.Containers() {
-		if container.Info.ID == getResourceId(r) {
-			return container.Labels[headers.TenancyLabel] == tenantId
+func IsResourceOwner(cluster cluster.Cluster, tenantName string, resourceId string, resourceType string) bool {
+	switch resourceType {
+	case "container":
+		for _, container := range cluster.Containers() {
+			if container.Info.ID == resourceId {
+				return container.Labels[headers.TenancyLabel] == tenantName
+			}
 		}
+		return false
+	case "network":
+		for _, network := range cluster.Networks() {
+			if network.ID == resourceId {
+				return strings.HasPrefix(network.Name, tenantName)
+			}
+		}
+		return false
+	default:
+		log.Warning("Unsupported resource type for authorization.")
+		return false
 	}
-	return false
 }
 
 //Expand / Refactor
@@ -108,10 +116,12 @@ const (
 	CONTAINER_LOGS    CommandEnum = "containerlogs"
 	CONTAINER_STATS   CommandEnum = "containerstats"
 	//SKIP ...
-	NETWORKS_LIST   CommandEnum = "networkslist"
-	NETWORK_INSPECT CommandEnum = "networkinspect"
-
-	NETWORK_CREATE CommandEnum = "createnetwork"
+	NETWORKS_LIST      CommandEnum = "networkslist"
+	NETWORK_INSPECT    CommandEnum = "networkinspect"
+	NETWORK_CONNECT    CommandEnum = "networkconnect"
+	NETWORK_DISCONNECT CommandEnum = "networkdisconnect"
+	NETWORK_CREATE     CommandEnum = "networkcreate"
+	NETWORK_DELETE     CommandEnum = "networkdelete"
 
 	//SKIP ...
 	//POST
@@ -132,13 +142,14 @@ const (
 	//SKIP ...
 
 	CONTAINER_DELETE CommandEnum = "containerdelete"
+
+	IMAGES_JSON CommandEnum = "imagesjson"
 )
 
 var invMapmap map[string]CommandEnum
 var initialized bool
 
 func ParseCommand(r *http.Request) CommandEnum {
-
 	if !initialized {
 		invMapmap = make(map[string]CommandEnum)
 		invMapmap["ping"] = PING
@@ -158,6 +169,10 @@ func ParseCommand(r *http.Request) CommandEnum {
 		//SKIP ...
 		invMapmap["networkslist"] = NETWORKS_LIST
 		invMapmap["networkinspect"] = NETWORK_INSPECT
+		invMapmap["networkconnect"] = NETWORK_CONNECT
+		invMapmap["networkdisconnect"] = NETWORK_DISCONNECT
+		invMapmap["networkcreate"] = NETWORK_CREATE
+		invMapmap["networkdelete"] = NETWORK_DELETE
 		//SKIP ...
 		//POST
 		invMapmap["containerscreate"] = CONTAINER_CREATE
@@ -176,22 +191,23 @@ func ParseCommand(r *http.Request) CommandEnum {
 		invMapmap["containerexec"] = CONTAINER_EXEC
 		//SKIP ...
 		invMapmap["containerdelete"] = CONTAINER_DELETE
+
+		invMapmap["imagesjson"] = IMAGES_JSON
 		initialized = true
 	}
-	//	command := commandParser(r)
-	//	log.Debug("++++++" + command + "++++++")
-
 	return invMapmap[commandParser(r)]
 }
 
 var containersRegexp = regexp.MustCompile("/containers/(.*)/(.*)|/containers/(\\w+)")
 var networksRegexp = regexp.MustCompile("/networks/(.*)/(.*)|/networks/(\\w+)")
 var clusterRegExp = regexp.MustCompile("/(.*)/(.*)")
+var imagesRegexp = regexp.MustCompile("/images/(.*)/(.*)|/images/(\\w+)")
 
 func commandParser(r *http.Request) string {
 	containersParams := containersRegexp.FindStringSubmatch(r.URL.Path)
 	networksParams := networksRegexp.FindStringSubmatch(r.URL.Path)
 	clusterParams := clusterRegExp.FindStringSubmatch(r.URL.Path)
+	imagesParams := imagesRegexp.FindStringSubmatch(r.URL.Path)
 
 	log.Debug(containersParams)
 	log.Debug(networksParams)
@@ -214,14 +230,30 @@ func commandParser(r *http.Request) string {
 			log.Debug("A2")
 			return "containers" + containersParams[3] //S
 		}
-		if len(clusterParams) == 3 {
-			log.Debug("A3")
-			return clusterParams[2]
+		if len(imagesParams) == 4 && imagesParams[2] != "" {
+			log.Debug("A1")
+			return "image" + imagesParams[2]
+		} else if len(imagesParams) == 4 && imagesParams[3] != "" {
+			log.Debug(" imagesParams[0] = ", imagesParams[0], " imagesParams[1] = ", imagesParams[1], " imagesParams[2] = ", imagesParams[2], " imagesParams[3] = ", imagesParams[3])
+			log.Debug("A2")
+			log.Debug("images" + imagesParams[3])
+			return "images" + imagesParams[3] //S
+		}
+		if strings.HasSuffix(r.URL.Path, "/networks") {
+			return "networkslist"
 		}
 		if len(networksParams) == 4 && networksParams[3] != "" {
+			if networksParams[3] == "create" {
+				return "networkcreate"
+			}
 			return "networkinspect"
-		} else if len(networksParams) == 4 && networksParams[1] == "" && networksParams[2] == "" && networksParams[3] == "" {
-			return "networkslist" //S
+		} else if len(networksParams) == 4 {
+			return "network" + networksParams[2]
+		}
+		if len(clusterParams) == 3 {
+			log.Debug("A3")
+			log.Debug(" clusterParams[0] = ", clusterParams[0], " clusterParams[1] = ", clusterParams[1], " clusterParams[2] = ", clusterParams[2], " len(imagesParams) = ", len(imagesParams))
+			return clusterParams[2]
 		}
 	}
 	return "This is not supported yet and will end up in the default of the Switch"
