@@ -67,7 +67,7 @@ func IsResourceOwner(cluster cluster.Cluster, tenantName string, resourceId stri
 		}
 		return false
 	default:
-		log.Warning("Unsupported resource type for authorization")
+		log.Warning("Unsupported resource type for authorization.")
 		return false
 	}		
 }
