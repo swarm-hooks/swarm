@@ -6,11 +6,13 @@ import (
 	"errors"
 	"io/ioutil"
 	"net/http"
+	log "github.com/Sirupsen/logrus"
 	apitypes "github.com/docker/engine-api/types"
 	"github.com/docker/swarm/cluster"
 	"github.com/docker/swarm/pkg/multiTenancyPlugins/headers"
 	"github.com/docker/swarm/pkg/multiTenancyPlugins/utils"
 	"github.com/gorilla/mux"
+	"os"
 )
 
 func ConnectDisconnect(cluster cluster.Cluster, r *http.Request) error {
@@ -31,6 +33,23 @@ func ConnectDisconnect(cluster cluster.Cluster, r *http.Request) error {
 			return err
 		}
 		r, _ = utils.ModifyRequest(r, bytes.NewReader(buf.Bytes()), "", "")
+	}
+	return nil
+}
+
+
+func NetworkAuthorization(cluster cluster.Cluster, r *http.Request, network string) error {
+	// remove this when networks will be created by Swarm only
+	if os.Getenv("SWARM_NETWORK_AUTHORIZATION") == "false" {
+		log.Debug("Network authorization is turned off.")
+		return nil
+	}
+	// allow Docker default networks.
+	if network == "default" || network == "bridge" || network == "host" || network == "none"{
+		return nil
+	}
+	if !utils.IsResourceOwner(cluster, r.Header.Get(headers.AuthZTenantIdHeaderName), network, "network") {
+			return errors.New("Not authorized or no such network!")
 	}
 	return nil
 }
