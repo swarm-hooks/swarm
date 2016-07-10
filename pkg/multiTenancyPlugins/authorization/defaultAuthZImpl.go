@@ -44,8 +44,8 @@ func (defaultauthZ *DefaultAuthZImpl) Handle(command utils.CommandEnum, cluster 
 			if strings.Contains(string(reqBody), headers.TenancyLabel) == true {
 				return errors.New("Error, special label " + headers.TenancyLabel + " disallowed!")
 			// network authorization
-			if !utils.IsResourceOwner(cluster, r.Header.Get(headers.AuthZTenantIdHeaderName), containerConfig.HostConfig.NetworkMode, "network") {
-				return errors.New("Not authorized or no such network!")
+			if err := NetworkAuthorization(cluster, r, containerConfig.HostConfig.NetworkMode); err != nil {
+				return err
 			}
 			containerConfig.Labels[headers.TenancyLabel] = r.Header.Get(headers.AuthZTenantIdHeaderName)
 			var buf bytes.Buffer
