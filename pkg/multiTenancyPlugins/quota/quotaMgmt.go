@@ -139,20 +139,6 @@ func (quota *QuotaMgmt) DeleteContainer(tenant string, memory int64, container s
 	}
 }
 
-func (quota *QuotaMgmt) IsSwarmContainer(cluster cluster.Cluster, id string, tenant string) error {
-	containers := (cluster).Containers()
-	for _, container := range containers {
-		if container.Info.ID == id {
-			swarm := container.Config.Labels[headers.SwarmLabel]
-			if swarm != "" {
-				return nil
-			}
-		}
-		return errors.New("Not Swarm container!")
-	}
-	return errors.New("container Not exists in cluster!")
-}
-
 //on delete request - decrease resource usage for the tenant in quotaService and set quota container status to PENDING_DELETED
 func (quota *QuotaMgmt) DecreaseQuota(id string, tenant string) bool {
 	if enforceQuota != "true" {
