@@ -10,13 +10,13 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/docker/swarm/pkg/multiTenancyPlugins/pluginAPI"
-	"github.com/samalba/dockerclient"
 	log "github.com/Sirupsen/logrus"
 	"github.com/docker/swarm/cluster"
 	"github.com/docker/swarm/pkg/multiTenancyPlugins/headers"
+	"github.com/docker/swarm/pkg/multiTenancyPlugins/pluginAPI"
 	"github.com/docker/swarm/pkg/multiTenancyPlugins/utils"
 	"github.com/gorilla/mux"
+	"github.com/samalba/dockerclient"
 )
 
 type DefaultAuthZImpl struct {
@@ -43,6 +43,7 @@ func (defaultauthZ *DefaultAuthZImpl) Handle(command utils.CommandEnum, cluster 
 			//Disallow a user to create the special labels we inject : headers.TenancyLabel
 			if strings.Contains(string(reqBody), headers.TenancyLabel) == true {
 				return errors.New("Error, special label " + headers.TenancyLabel + " disallowed!")
+			}
 			// network authorization
 			if err := NetworkAuthorization(cluster, r, containerConfig.HostConfig.NetworkMode); err != nil {
 				return err
@@ -62,7 +63,7 @@ func (defaultauthZ *DefaultAuthZImpl) Handle(command utils.CommandEnum, cluster 
 			return errors.New("Not Authorized or no such resource!")
 		}
 		return defaultauthZ.nextHandler(command, cluster, w, r, swarmHandler)
-		
+
 	case utils.CONTAINER_JSON:
 		if !utils.IsResourceOwner(cluster, r.Header.Get(headers.AuthZTenantIdHeaderName), mux.Vars(r)["name"], "container") {
 			return errors.New("Not Authorized or no such resource!")
@@ -111,7 +112,7 @@ func (defaultauthZ *DefaultAuthZImpl) Handle(command utils.CommandEnum, cluster 
 		}
 		newBody := utils.CleanUpLabeling(r, rec)
 		w.Write(newBody)
-		
+
 	case utils.NETWORKS_LIST:
 		rec := httptest.NewRecorder()
 		if err := defaultauthZ.nextHandler(command, cluster, rec, r, swarmHandler); err != nil {
@@ -129,13 +130,13 @@ func (defaultauthZ *DefaultAuthZImpl) Handle(command utils.CommandEnum, cluster 
 			return errors.New("Not authorized or no such network!")
 		}
 		return defaultauthZ.nextHandler(command, cluster, w, r, swarmHandler)
-		
+
 	case utils.NETWORK_CONNECT, utils.NETWORK_DISCONNECT:
 		if err := ConnectDisconnect(cluster, r); err != nil {
 			return err
 		}
 		return defaultauthZ.nextHandler(command, cluster, w, r, swarmHandler)
-		
+
 	case utils.INFO, utils.NETWORK_CREATE, utils.EVENTS, utils.IMAGES_JSON:
 		return defaultauthZ.nextHandler(command, cluster, w, r, swarmHandler)
 	//Always allow or not?
