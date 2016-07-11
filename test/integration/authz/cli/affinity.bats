@@ -17,7 +17,7 @@
   
 
 load cli_helpers
-
+NOTAUTHORIZED="Error response from daemon: No such container or the user is not authorized for this container:"
 @test "Check affinity:container==" {
     #skip
 	run docker -H $SWARM_HOST --config $DOCKER_CONFIG1 run -d --name frontend busybox true
@@ -43,6 +43,8 @@ load cli_helpers
 	run docker -H $SWARM_HOST --config $DOCKER_CONFIG1 inspect --format={{.Node.Name}} $refer1
 	[ "$status" -eq 0 ]
     [[ "$output" != *"Error"* ]]
+	echo $nodeName
+	echo $output
 	[[ $nodeName == "$output" ]]
 	run docker -H $SWARM_HOST --config $DOCKER_CONFIG1 inspect --format={{.Node.Name}} $refer2
 	[ "$status" -eq 0 ]
@@ -55,7 +57,7 @@ load cli_helpers
 	#validate tenant isolation
 	run docker -H $SWARM_HOST --config $DOCKER_CONFIG2 run -d -e affinity:container==frontend busybox true
     [ "$status" -ne 0 ]
-    [[ "$output" == *"Error"* ]]
+    [[ "$output" == *"$NOTAUTHORIZED frontend"* ]]
 	run docker -H $SWARM_HOST --config $DOCKER_CONFIG2 run -d --name frontend busybox true
     [ "$status" -eq 0 ]
     [[ "$output" != *"Error"* ]]
@@ -106,7 +108,7 @@ load cli_helpers
 	#validate tenant isolation
 	run docker -H $SWARM_HOST --config $DOCKER_CONFIG2 run -d -e affinity:com.example.type==frontend busybox true
     [ "$status" -ne 0 ]
-    [[ "$output" == *"Error"* ]]
+    [[ "$output" == *"$NOTAUTHORIZED com.example.type==frontend"* ]]
 	run docker -H $SWARM_HOST --config $DOCKER_CONFIG2 run -d --label com.example.type=frontend busybox true
     [ "$status" -eq 0 ]
     [[ "$output" != *"Error"* ]]
