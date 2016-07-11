@@ -69,7 +69,7 @@ func IsResourceOwner(cluster cluster.Cluster, tenantName string, resourceId stri
 	default:
 		log.Warning("Unsupported resource type for authorization.")
 		return false
-	}		
+	}
 }
 
 //Expand / Refactor
@@ -243,9 +243,9 @@ func commandParser(r *http.Request) string {
 			return "networkslist"
 		}
 		if len(networksParams) == 4 && networksParams[3] != "" {
-			if networksParams[3] == "create"{
+			if networksParams[3] == "create" {
 				return "networkcreate"
-			}		
+			}
 			return "networkinspect"
 		} else if len(networksParams) == 4 {
 			return "network" + networksParams[2]

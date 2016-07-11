@@ -29,7 +29,6 @@ func NewNameScoping(handler pluginAPI.Handler) pluginAPI.PluginAPI {
 	return nameScoping
 }
 
-
 func getContainerID(cluster cluster.Cluster, r *http.Request, containerName string) string {
 	tenantId := r.Header.Get(headers.AuthZTenantIdHeaderName)
 	for _, container := range cluster.Containers() {
@@ -50,27 +49,6 @@ func getContainerID(cluster cluster.Cluster, r *http.Request, containerName stri
 		}
 	}
 	return containerName
-}
-
-
-func getNetworkID(cluster cluster.Cluster, r *http.Request, networkId string) string {
-	tenantId := r.Header.Get(headers.AuthZTenantIdHeaderName)
-	for _, network := range cluster.Networks() {
-		if network.ID == networkId {
-			//Match by Full ID.
-			return network.ID
-		} else {
-			if network.Name == tenantId + networkId {
-				//Match by name. Replace by full ID.
-				return network.ID
-			}
-		}
-		if strings.HasPrefix(network.ID, networkId) {
-			//Match by short id. Replace by full ID.
-			return network.ID
-		}
-	}
-	return networkId
 }
 
 //Handle authentication on request and call next plugin handler.
@@ -127,25 +105,24 @@ func (nameScoping *DefaultNameScopingImpl) Handle(command utils.CommandEnum, clu
 		return nameScoping.nextHandler(command, cluster, w, r, swarmHandler)
 
 	case utils.NETWORK_CONNECT, utils.NETWORK_DISCONNECT:
-		case c.NETWORK_CONNECT, c.NETWORK_DISCONNECT:
 		if err := ConnectDisconnect(cluster, r); err != nil {
 			return err
 		}
 		return nameScoping.nextHandler(command, cluster, w, r, swarmHandler)
-		
-	case c.NETWORK_CREATE:
+
+	case utils.NETWORK_CREATE:
 		if err := CreateNetwork(cluster, r); err != nil {
 			return err
 		}
 		return nameScoping.nextHandler(command, cluster, w, r, swarmHandler)
-		
-	case c.NETWORK_INSPECT, c.NETWORK_DELETE:
+
+	case utils.NETWORK_INSPECT, utils.NETWORK_DELETE:
 		DeleteInspect(cluster, r)
 		return nameScoping.nextHandler(command, cluster, w, r, swarmHandler)
-		
+
 	case utils.PS, utils.JSON, utils.NETWORKS_LIST, utils.INFO, utils.EVENTS, utils.IMAGES_JSON:
 		return nameScoping.nextHandler(command, cluster, w, r, swarmHandler)
-		
+
 	default:
 
 	}
