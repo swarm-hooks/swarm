@@ -74,7 +74,6 @@ func init() {
 	supportedAPIsMap["getRepositoryImages"] = false   //images/{name:.*}/get	(Get a tarball containing all images in a repository)
 	supportedAPIsMap["inspectImage"] = false          //images/{name:.*}/json
 	supportedAPIsMap["execjson"] = false              //exec/{execid:.*}/json
-	supportedAPIsMap["networkinspect"] = false        //networks/{networkid:.*}"
 	supportedAPIsMap["auth"] = false                  //auth
 	supportedAPIsMap["commit"] = false                //commit
 	supportedAPIsMap["build"] = false                 //build
