@@ -47,7 +47,7 @@ func CreateNetwork(cluster cluster.Cluster, r *http.Request) error {
 	defer r.Body.Close()
 	// prefix network name with tenant name.
 	if reqBody, _ := ioutil.ReadAll(r.Body); len(reqBody) > 0 {
-		var request apitypes.NetworkCreate
+		var request apitypes.NetworkCreateRequest
 		if err := json.NewDecoder(bytes.NewReader(reqBody)).Decode(&request); err != nil {
 			return err
 		}
