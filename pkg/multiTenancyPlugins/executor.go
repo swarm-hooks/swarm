@@ -27,10 +27,7 @@ func (*Executor) Handle(cluster cluster.Cluster, swarmHandler http.Handler) http
 		return swarmHandler
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if os.Getenv("SWARM_MULTI_TENANT") == "false" {
-			swarmHandler.ServeHTTP(w, r)
-			return
-		}
+		log.Debug(r)
 		err := startHandler(utils.ParseCommand(r), cluster, w, r, swarmHandler)
 		if err != nil {
 			log.Error(err)
