@@ -76,6 +76,7 @@ func (nameScoping *DefaultNameScopingImpl) Handle(command utils.CommandEnum, clu
 			newQuery = strings.Replace(r.RequestURI, r.URL.Query().Get("name"), r.URL.Query().Get("name")+r.Header.Get(headers.AuthZTenantIdHeaderName), 1)
 			containerConfig.Labels[headers.OriginalNameLabel] = r.URL.Query().Get("name")
 		}
+		containerConfig.HostConfig.NetworkMode = getNetworkID(cluster, r, containerConfig.HostConfig.NetworkMode)
 		if err := CheckContainerReferences(cluster, r.Header.Get(headers.AuthZTenantIdHeaderName), &containerConfig); err != nil {
 			log.Error(err)
 			return err
