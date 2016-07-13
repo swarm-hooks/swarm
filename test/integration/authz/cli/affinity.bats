@@ -19,7 +19,7 @@
 load cli_helpers
 NOTAUTHORIZED="Error response from daemon: No such container or the user is not authorized for this container:"
 @test "Check affinity:container==" {
-    #skip
+    skip "Affinity not supported"
 	run docker -H $SWARM_HOST --config $DOCKER_CONFIG1 run -d --name frontend busybox true
     [ "$status" -eq 0 ]
     [[ "$output" != *"Error"* ]]
@@ -80,7 +80,7 @@ NOTAUTHORIZED="Error response from daemon: No such container or the user is not 
 
 }
 @test "Check affinity:<label>==" {
-    #skip
+    skip "Affinity not supported."
 	run docker -H $SWARM_HOST --config $DOCKER_CONFIG1 run -d --label com.example.type=frontend busybox true
     [ "$status" -eq 0 ]
     [[ "$output" != *"Error"* ]]
