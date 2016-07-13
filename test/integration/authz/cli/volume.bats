@@ -18,7 +18,7 @@
 
 load cli_helpers
 @test "Check volume management" {
-    #skip
+    skip "Volume managment not supported."
 	run docker -H $SWARM_HOST --config $DOCKER_CONFIG1 volume create --name t1volume
     [ "$status" -eq 0 ]
     [[ "$output" == "t1volume" ]]
@@ -122,7 +122,7 @@ load cli_helpers
 }
 
 @test "Check volume binding" {
-	#skip
+    skip "Volume managment not supported."
 	run docker -H $SWARM_HOST --config $DOCKER_CONFIG1 volume create --name myvolume
     [ "$status" -eq 0 ]
     [[ "$output" == "myvolume" ]]
