@@ -102,7 +102,7 @@ func (nameScoping *DefaultNameScopingImpl) Handle(command utils.CommandEnum, clu
 		} else {
 			log.Debug("What now?")
 		}
-	case utils.CONTAINER_START, utils.CONTAINER_STOP, utils.CONTAINER_RESTART, utils.CONTAINER_DELETE, utils.CONTAINER_WAIT, utils.CONTAINER_ARCHIVE, utils.CONTAINER_KILL, utils.CONTAINER_PAUSE, utils.CONTAINER_UNPAUSE, utils.CONTAINER_UPDATE, utils.CONTAINER_COPY, utils.CONTAINER_CHANGES, utils.CONTAINER_ATTACH, utils.CONTAINER_LOGS, utils.CONTAINER_TOP, utils.CONTAINER_STATS:
+	case utils.CONTAINER_START, utils.CONTAINER_STOP, utils.CONTAINER_RESTART, utils.CONTAINER_DELETE, utils.CONTAINER_WAIT, utils.CONTAINER_ARCHIVE, utils.CONTAINER_KILL, utils.CONTAINER_PAUSE, utils.CONTAINER_UNPAUSE, utils.CONTAINER_UPDATE, utils.CONTAINER_COPY, utils.CONTAINER_CHANGES, utils.CONTAINER_ATTACH, utils.CONTAINER_LOGS, utils.CONTAINER_TOP, utils.CONTAINER_STATS, utils.CONTAINER_EXEC:
 		containerName := mux.Vars(r)["name"]
 		conatinerID := getContainerID(cluster, r, containerName)
 		mux.Vars(r)["name"] = conatinerID
@@ -125,7 +125,7 @@ func (nameScoping *DefaultNameScopingImpl) Handle(command utils.CommandEnum, clu
 		DeleteInspect(cluster, r)
 		return nameScoping.nextHandler(command, cluster, w, r, swarmHandler)
 
-	case utils.PS, utils.JSON, utils.NETWORKS_LIST, utils.INFO, utils.EVENTS, utils.IMAGES_JSON:
+	case utils.PS, utils.JSON, utils.NETWORKS_LIST, utils.INFO, utils.EVENTS, utils.IMAGES_JSON, utils.EXEC_START, utils.EXEC_RESIZE:
 		return nameScoping.nextHandler(command, cluster, w, r, swarmHandler)
 
 	default:

@@ -72,6 +72,18 @@ func IsResourceOwner(cluster cluster.Cluster, tenantName string, resourceId stri
 	}
 }
 
+//Verify exec id is in a container on the tennant id
+func VerifyExecContainerTenant(cluster cluster.Cluster, tenantId string, r *http.Request) bool {
+	for _, container := range cluster.Containers() {
+		for _, execID := range container.Info.ExecIDs {
+			if execID == mux.Vars(r)["execid"] {//getExecId(r) {
+				return container.Labels[headers.TenancyLabel] == tenantId
+			}
+		}
+	}
+	return false
+}
+
 //Expand / Refactor
 func CleanUpLabeling(r *http.Request, rec *httptest.ResponseRecorder) []byte {
 	newBody := bytes.Replace(rec.Body.Bytes(), []byte(headers.TenancyLabel), []byte(" "), -1)
@@ -139,6 +151,8 @@ const (
 	CONTAINER_ATTACH  CommandEnum = "containerattach"
 	CONTAINER_COPY    CommandEnum = "containercopy"
 	CONTAINER_EXEC    CommandEnum = "containerexec"
+	EXEC_START		  CommandEnum = "execstart"
+	EXEC_RESIZE		  CommandEnum = "execresize"
 	//SKIP ...
 
 	CONTAINER_DELETE CommandEnum = "containerdelete"
@@ -189,6 +203,8 @@ func ParseCommand(r *http.Request) CommandEnum {
 		invMapmap["containerattach"] = CONTAINER_ATTACH
 		invMapmap["containercopy"] = CONTAINER_COPY
 		invMapmap["containerexec"] = CONTAINER_EXEC
+		invMapmap["execstart"] = EXEC_START
+		invMapmap["execresize"] = EXEC_RESIZE
 		//SKIP ...
 		invMapmap["containerdelete"] = CONTAINER_DELETE
 
@@ -234,7 +250,6 @@ func commandParser(r *http.Request) string {
 			log.Debug("A1")
 			return "image" + imagesParams[2]
 		} else if len(imagesParams) == 4 && imagesParams[3] != "" {
-			log.Debug(" imagesParams[0] = ", imagesParams[0], " imagesParams[1] = ", imagesParams[1], " imagesParams[2] = ", imagesParams[2], " imagesParams[3] = ", imagesParams[3])
 			log.Debug("A2")
 			log.Debug("images" + imagesParams[3])
 			return "images" + imagesParams[3] //S
@@ -250,9 +265,11 @@ func commandParser(r *http.Request) string {
 		} else if len(networksParams) == 4 {
 			return "network" + networksParams[2]
 		}
-		if len(clusterParams) == 3 {
+		if len(clusterParams) == 3 && (clusterParams[2] == "start" || clusterParams[2] == "resize" || clusterParams[2] == "json") {
 			log.Debug("A3")
-			log.Debug(" clusterParams[0] = ", clusterParams[0], " clusterParams[1] = ", clusterParams[1], " clusterParams[2] = ", clusterParams[2], " len(imagesParams) = ", len(imagesParams))
+			return "exec" + clusterParams[2]
+		}else{
+			log.Debug("A3")
 			return clusterParams[2]
 		}
 	}
