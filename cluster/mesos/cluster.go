@@ -526,11 +526,11 @@ func (c *Cluster) removeOffer(offer *mesosproto.Offer) bool {
 		return false
 	}
 	found := s.removeOffer(offer.Id.GetValue())
-//	if s.empty() {
-//		// Disconnect from engine
-//		s.engine.Disconnect()
-//		delete(c.agents, offer.SlaveId.GetValue())
-//	}
+	//	if s.empty() {
+	//		// Disconnect from engine
+	//		s.engine.Disconnect()
+	//		delete(c.agents, offer.SlaveId.GetValue())
+	//	}
 	return found
 }
 

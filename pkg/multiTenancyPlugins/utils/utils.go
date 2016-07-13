@@ -76,7 +76,7 @@ func IsResourceOwner(cluster cluster.Cluster, tenantName string, resourceId stri
 func VerifyExecContainerTenant(cluster cluster.Cluster, tenantId string, r *http.Request) bool {
 	for _, container := range cluster.Containers() {
 		for _, execID := range container.Info.ExecIDs {
-			if execID == mux.Vars(r)["execid"] {//getExecId(r) {
+			if execID == mux.Vars(r)["execid"] { //getExecId(r) {
 				return container.Labels[headers.TenancyLabel] == tenantId
 			}
 		}
@@ -151,8 +151,8 @@ const (
 	CONTAINER_ATTACH  CommandEnum = "containerattach"
 	CONTAINER_COPY    CommandEnum = "containercopy"
 	CONTAINER_EXEC    CommandEnum = "containerexec"
-	EXEC_START		  CommandEnum = "execstart"
-	EXEC_RESIZE		  CommandEnum = "execresize"
+	EXEC_START        CommandEnum = "execstart"
+	EXEC_RESIZE       CommandEnum = "execresize"
 	//SKIP ...
 
 	CONTAINER_DELETE CommandEnum = "containerdelete"
@@ -268,7 +268,7 @@ func commandParser(r *http.Request) string {
 		if len(clusterParams) == 3 && (clusterParams[2] == "start" || clusterParams[2] == "resize" || clusterParams[2] == "json") {
 			log.Debug("A3")
 			return "exec" + clusterParams[2]
-		}else{
+		} else {
 			log.Debug("A3")
 			return clusterParams[2]
 		}

@@ -139,13 +139,13 @@ func (defaultauthZ *DefaultAuthZImpl) Handle(command utils.CommandEnum, cluster 
 
 	case utils.INFO, utils.NETWORK_CREATE, utils.EVENTS, utils.IMAGES_JSON:
 		return defaultauthZ.nextHandler(command, cluster, w, r, swarmHandler)
-	
+
 	case utils.EXEC_START, utils.EXEC_RESIZE:
 		if !utils.VerifyExecContainerTenant(cluster, r.Header.Get(headers.AuthZTenantIdHeaderName), r) {
 			return errors.New("Not Authorized!")
 		}
-		return defaultauthZ.nextHandler(command, cluster, w, r, swarmHandler)	
-	
+		return defaultauthZ.nextHandler(command, cluster, w, r, swarmHandler)
+
 	//Always allow or not?
 	default:
 		if !utils.IsResourceOwner(cluster, r.Header.Get(headers.AuthZTenantIdHeaderName), mux.Vars(r)["name"], "container") {
