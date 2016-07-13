@@ -23,7 +23,9 @@ func initSupportedAPIsMap() {
 	supportedAPIsMap[c.CONTAINER_COPY] = true
 	supportedAPIsMap[c.CONTAINER_CHANGES] = true
 	supportedAPIsMap[c.EVENTS] = true
-	supportedAPIsMap[c.CONTAINER_EXEC] = false
+	supportedAPIsMap[c.CONTAINER_EXEC] = true
+	supportedAPIsMap[c.EXEC_START] = true             //exec/{execid:.*}/start
+	supportedAPIsMap[c.EXEC_RESIZE] = true            //exec/{execid:.*}/resize
 	supportedAPIsMap[c.CONTAINER_EXPORT] = false
 	supportedAPIsMap[c.CONTAINER_JSON] = true
 	supportedAPIsMap[c.CONTAINER_RESTART] = true
@@ -84,8 +86,6 @@ func initSupportedAPIsMap() {
 	supportedAPIsMap["commit"] = false                //commit
 	supportedAPIsMap["build"] = false                 //build
 	supportedAPIsMap[c.CONTAINER_RESIZE] = false      //containers/{name:.*}/resize
-	supportedAPIsMap["execstart"] = false             //exec/{execid:.*}/start
-	supportedAPIsMap["execresize"] = false            //exec/{execid:.*}/resize
 	//images/create:                    (Create an image) is it equal to imagepull??
 }
 
