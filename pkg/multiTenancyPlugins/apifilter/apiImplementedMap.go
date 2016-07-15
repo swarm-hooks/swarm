@@ -26,6 +26,7 @@ func initSupportedAPIsMap() {
 	supportedAPIsMap[c.CONTAINER_EXEC] = true
 	supportedAPIsMap[c.EXEC_START] = true  //exec/{execid:.*}/start
 	supportedAPIsMap[c.EXEC_RESIZE] = true //exec/{execid:.*}/resize
+	supportedAPIsMap[c.EXEC_JSON] = true //exec/{execid:.*}/json
 	supportedAPIsMap[c.CONTAINER_EXPORT] = false
 	supportedAPIsMap[c.CONTAINER_JSON] = true
 	supportedAPIsMap[c.CONTAINER_RESTART] = true
@@ -81,7 +82,6 @@ func initSupportedAPIsMap() {
 	supportedAPIsMap["imagesviz"] = false             //notImplementedHandler
 	supportedAPIsMap["getRepositoriesImages"] = false //images/get	(Get a tarball containing all images)
 	supportedAPIsMap["getRepositoryImages"] = false   //images/{name:.*}/get	(Get a tarball containing all images in a repository)
-	supportedAPIsMap["execjson"] = false              //exec/{execid:.*}/json
 	supportedAPIsMap["auth"] = false                  //auth
 	supportedAPIsMap["commit"] = false                //commit
 	supportedAPIsMap["build"] = false                 //build
