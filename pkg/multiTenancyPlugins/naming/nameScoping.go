@@ -41,7 +41,7 @@ func getContainerID(cluster cluster.Cluster, r *http.Request, containerName stri
 			return container.Info.ID
 		} else {
 			for _, name := range container.Names {
-				if (containerName == name || containerName == container.Labels[headers.OriginalNameLabel]) && container.Labels[headers.TenancyLabel] == tenantId {
+				if (containerName == strings.TrimPrefix(name, "/") || containerName == container.Labels[headers.OriginalNameLabel]) && container.Labels[headers.TenancyLabel] == tenantId {
 					//Match by Name
 					return container.Info.ID
 				}
