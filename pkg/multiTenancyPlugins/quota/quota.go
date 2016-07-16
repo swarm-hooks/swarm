@@ -50,15 +50,15 @@ func (quotaImpl *DefaultQuotaImpl) Handle(command utils.CommandEnum, cluster clu
 	case utils.CONTAINER_CREATE:
 		defer r.Body.Close()
 		if reqBody, _ := ioutil.ReadAll(r.Body); len(reqBody) > 0 {
-			var oldconfig clusterParams.OldContainerConfig	
+			var oldconfig clusterParams.OldContainerConfig
 			if err := json.NewDecoder(bytes.NewReader(reqBody)).Decode(&oldconfig); err != nil {
 				return err
 			}
-			
+
 			// make sure HostConfig fields are consolidated before creating container
 			clusterParams.ConsolidateResourceFields(&oldconfig)
 			config := oldconfig.ContainerConfig
-	
+
 			memory := config.HostConfig.Memory
 			tenant := r.Header.Get(headers.AuthZTenantIdHeaderName)
 			// Increase tenant quota usage if quota limit isn't exceeded.
