@@ -26,7 +26,7 @@ func initSupportedAPIsMap() {
 	supportedAPIsMap[c.CONTAINER_EXEC] = true
 	supportedAPIsMap[c.EXEC_START] = true  //exec/{execid:.*}/start
 	supportedAPIsMap[c.EXEC_RESIZE] = true //exec/{execid:.*}/resize
-	supportedAPIsMap[c.EXEC_JSON] = true //exec/{execid:.*}/json
+	supportedAPIsMap[c.EXEC_JSON] = true   //exec/{execid:.*}/json
 	supportedAPIsMap[c.CONTAINER_EXPORT] = false
 	supportedAPIsMap[c.CONTAINER_JSON] = true
 	supportedAPIsMap[c.CONTAINER_RESTART] = true

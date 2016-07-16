@@ -10,9 +10,10 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/docker/swarm/cluster"
+	clusterParams "github.com/docker/swarm/cluster"
 	"github.com/docker/swarm/pkg/multiTenancyPlugins/pluginAPI"
 	"github.com/docker/swarm/pkg/multiTenancyPlugins/utils"
-	"github.com/samalba/dockerclient"
+	containertypes "github.com/docker/engine-api/types/container"
 )
 
 type DefaultFlavorsImpl struct {
@@ -84,11 +85,39 @@ func (flavorsImpl *DefaultFlavorsImpl) Handle(command utils.CommandEnum, cluster
 	if reqBody, _ := ioutil.ReadAll(r.Body); len(reqBody) > 0 {
 		var flavorIn Flavor
 		var buf bytes.Buffer
-		var containerConfig dockerclient.ContainerConfig
-		if err := json.NewDecoder(bytes.NewReader(reqBody)).Decode(&containerConfig); err != nil {
-			return err
+		var (
+			defaultMemorySwappiness = int64(-1)
+			//name                    = r.Form.Get("name")
+			config  = clusterParams.ContainerConfig{
+				HostConfig: containertypes.HostConfig{
+					Resources: containertypes.Resources{
+						MemorySwappiness: &(defaultMemorySwappiness),
+					},
+				 },
+			}
+		)
+		
+		oldconfig := clusterParams.OldContainerConfig{
+		ContainerConfig: config,
+		Memory:          0,
+		MemorySwap:      0,
+		CPUShares:       0,
+		CPUSet:          "",
 		}
-		flavorIn.Memory = containerConfig.HostConfig.Memory
+
+		var reqBody []byte
+		defer r.Body.Close()
+		if reqBody, _ = ioutil.ReadAll(r.Body); len(reqBody) > 0 {
+			if err := json.NewDecoder(bytes.NewReader(reqBody)).Decode(&oldconfig); err != nil {
+				log.Error(err)
+				return err
+			}
+		}
+		// make sure HostConfig fields are consolidated before creating container
+		clusterParams.ConsolidateResourceFields(&oldconfig)
+		config = oldconfig.ContainerConfig
+		
+		flavorIn.Memory = config.HostConfig.Memory
 		_key := "default"
 		for key, value := range flavors {
 			if value == flavorIn {
@@ -97,8 +126,8 @@ func (flavorsImpl *DefaultFlavorsImpl) Handle(command utils.CommandEnum, cluster
 			}
 		}
 		log.Debug("Plugin flavors apply flavor: ", _key)
-		containerConfig.HostConfig.Memory = flavors[_key].Memory
-		if err := json.NewEncoder(&buf).Encode(containerConfig); err != nil {
+		config.HostConfig.Memory = flavors[_key].Memory
+		if err := json.NewEncoder(&buf).Encode(oldconfig); err != nil {
 			return err
 		}
 		r, _ = utils.ModifyRequest(r, bytes.NewReader(buf.Bytes()), "", "")

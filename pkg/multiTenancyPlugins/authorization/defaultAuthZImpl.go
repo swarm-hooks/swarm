@@ -12,11 +12,12 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/docker/swarm/cluster"
+	clusterParams "github.com/docker/swarm/cluster"
 	"github.com/docker/swarm/pkg/multiTenancyPlugins/headers"
 	"github.com/docker/swarm/pkg/multiTenancyPlugins/pluginAPI"
 	"github.com/docker/swarm/pkg/multiTenancyPlugins/utils"
 	"github.com/gorilla/mux"
-	"github.com/samalba/dockerclient"
+	containertypes "github.com/docker/engine-api/types/container"
 )
 
 type DefaultAuthZImpl struct {
@@ -34,27 +35,42 @@ func (defaultauthZ *DefaultAuthZImpl) Handle(command utils.CommandEnum, cluster 
 	log.Debug("Plugin AuthZ got command: " + command)
 	switch command {
 	case utils.CONTAINER_CREATE:
+		var (
+			defaultMemorySwappiness = int64(-1)
+			//name                    = r.Form.Get("name")
+			config  = clusterParams.ContainerConfig{
+				HostConfig: containertypes.HostConfig{
+					Resources: containertypes.Resources{
+						MemorySwappiness: &(defaultMemorySwappiness),
+					},
+				 },
+			}
+		)
+
+		var reqBody []byte
 		defer r.Body.Close()
-		if reqBody, _ := ioutil.ReadAll(r.Body); len(reqBody) > 0 {
-			var containerConfig dockerclient.ContainerConfig
-			if err := json.NewDecoder(bytes.NewReader(reqBody)).Decode(&containerConfig); err != nil {
+		if reqBody, _ = ioutil.ReadAll(r.Body); len(reqBody) > 0 {
+			if err := json.NewDecoder(bytes.NewReader(reqBody)).Decode(&config); err != nil {
+				log.Error(err)
 				return err
 			}
-			//Disallow a user to create the special labels we inject : headers.TenancyLabel
-			if strings.Contains(string(reqBody), headers.TenancyLabel) == true {
-				return errors.New("Error, special label " + headers.TenancyLabel + " disallowed!")
-			}
-			// network authorization
-			if err := NetworkAuthorization(cluster, r, containerConfig.HostConfig.NetworkMode); err != nil {
-				return err
-			}
-			containerConfig.Labels[headers.TenancyLabel] = r.Header.Get(headers.AuthZTenantIdHeaderName)
-			var buf bytes.Buffer
-			if err := json.NewEncoder(&buf).Encode(containerConfig); err != nil {
-				return err
-			}
-			r, _ = utils.ModifyRequest(r, bytes.NewReader(buf.Bytes()), "", "")
 		}
+		
+		//Disallow a user to create the special labels we inject : headers.TenancyLabel
+		if strings.Contains(string(reqBody), headers.TenancyLabel) == true {
+			return errors.New("Error, special label " + headers.TenancyLabel + " disallowed!")
+		}
+		// network authorization
+		if err := NetworkAuthorization(cluster, r, string(config.HostConfig.NetworkMode)); err != nil {
+			return err
+		}
+		config.Config.Labels[headers.TenancyLabel] = r.Header.Get(headers.AuthZTenantIdHeaderName)
+		var buf bytes.Buffer
+		if err := json.NewEncoder(&buf).Encode(config); err != nil {
+			return err
+		}
+		r, _ = utils.ModifyRequest(r, bytes.NewReader(buf.Bytes()), "", "")
+		
 		return defaultauthZ.nextHandler(command, cluster, w, r, swarmHandler)
 		log.Debug("Returned from Swarm")
 		//In case of container json - should record and clean - consider seperating..
