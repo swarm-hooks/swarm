@@ -18,7 +18,7 @@ LABEL build-date=${build_date}
 LABEL git-tag=${git_tag}
 LABEL git-remote-url=${git_remote_url}
 
-ENV GOPATH /go/src/github.com/docker/swarm/Godeps/_workspace:$GOPATH
+ENV GO15VENDOREXPERIMENT=1
 
 RUN set -ex \
 	&& apk add --no-cache --virtual .build-deps \
