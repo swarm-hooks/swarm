@@ -157,7 +157,11 @@ const (
 
 	CONTAINER_DELETE CommandEnum = "containerdelete"
 
-	IMAGES_JSON CommandEnum = "imagesjson"
+	IMAGES_JSON   CommandEnum = "imagesjson"
+	IMAGE_PULL    CommandEnum = "imagescreate"
+	IMAGE_SEARCH  CommandEnum = "imagessearch"
+	IMAGE_JSON    CommandEnum = "imagejson"
+	IMAGE_HISTORY CommandEnum = "imagehistory"
 )
 
 var invMapmap map[string]CommandEnum
@@ -209,6 +213,10 @@ func ParseCommand(r *http.Request) CommandEnum {
 		invMapmap["containerdelete"] = CONTAINER_DELETE
 
 		invMapmap["imagesjson"] = IMAGES_JSON
+		invMapmap["imagescreate"] = IMAGE_PULL
+		invMapmap["imagessearch"] = IMAGE_SEARCH
+		invMapmap["imagejson"] = IMAGE_JSON
+		invMapmap["imagehistory"] = IMAGE_HISTORY
 		initialized = true
 	}
 	return invMapmap[commandParser(r)]
@@ -228,6 +236,7 @@ func commandParser(r *http.Request) string {
 	log.Debug(containersParams)
 	log.Debug(networksParams)
 	log.Debug(clusterParams)
+	log.Debug(imagesParams)
 
 	switch r.Method {
 	case "DELETE":
@@ -236,6 +245,9 @@ func commandParser(r *http.Request) string {
 		}
 		if len(networksParams) > 0 {
 			return "networkdelete"
+		}
+		if len(imagesParams) > 0 {
+			return "imagedelete"
 		}
 
 	case "GET", "POST":
