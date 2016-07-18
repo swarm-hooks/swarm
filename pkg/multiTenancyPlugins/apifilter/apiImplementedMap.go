@@ -45,14 +45,15 @@ func initSupportedAPIsMap() {
 	supportedAPIsMap[c.CONTAINER_RESIZE] = false
 	//image
 	supportedAPIsMap["imagecommit"] = false
-	supportedAPIsMap["imagehistory"] = false
+	supportedAPIsMap[c.IMAGE_HISTORY] = true
 	supportedAPIsMap["imageimport"] = false
 	supportedAPIsMap["imageload"] = false
-	supportedAPIsMap["imagepull"] = false
+	supportedAPIsMap[c.IMAGE_PULL] = true
 	supportedAPIsMap["imagepush"] = false
-	supportedAPIsMap["imageremove"] = false
+	supportedAPIsMap["imagedelete"] = true
 	supportedAPIsMap["imagesave"] = false
-	supportedAPIsMap["imagesearch"] = false
+	supportedAPIsMap[c.IMAGE_SEARCH] = true
+	supportedAPIsMap[c.IMAGE_JSON] = false //inspect image
 	supportedAPIsMap["imagetag"] = false
 	supportedAPIsMap[c.IMAGES_JSON] = true //listImages
 	//server
@@ -80,7 +81,6 @@ func initSupportedAPIsMap() {
 	supportedAPIsMap["imagesviz"] = false             //notImplementedHandler
 	supportedAPIsMap["getRepositoriesImages"] = false //images/get	(Get a tarball containing all images)
 	supportedAPIsMap["getRepositoryImages"] = false   //images/{name:.*}/get	(Get a tarball containing all images in a repository)
-	supportedAPIsMap["inspectImage"] = false          //images/{name:.*}/json
 	supportedAPIsMap["execjson"] = false              //exec/{execid:.*}/json
 	supportedAPIsMap["auth"] = false                  //auth
 	supportedAPIsMap["commit"] = false                //commit

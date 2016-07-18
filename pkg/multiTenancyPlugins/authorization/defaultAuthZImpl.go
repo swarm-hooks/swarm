@@ -137,7 +137,7 @@ func (defaultauthZ *DefaultAuthZImpl) Handle(command utils.CommandEnum, cluster 
 		}
 		return defaultauthZ.nextHandler(command, cluster, w, r, swarmHandler)
 
-	case utils.INFO, utils.NETWORK_CREATE, utils.EVENTS, utils.IMAGES_JSON:
+	case utils.INFO, utils.NETWORK_CREATE, utils.EVENTS, utils.IMAGES_JSON, utils.IMAGE_PULL, utils.IMAGE_SEARCH, utils.IMAGE_HISTORY:
 		return defaultauthZ.nextHandler(command, cluster, w, r, swarmHandler)
 
 	case utils.EXEC_START, utils.EXEC_RESIZE:
