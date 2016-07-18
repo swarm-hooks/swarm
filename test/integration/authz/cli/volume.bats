@@ -17,8 +17,9 @@
   
 
 load cli_helpers
+
 @test "Check volume management" {
-    skip "Volume managment not supported."
+    #skip 
 	run docker -H $SWARM_HOST --config $DOCKER_CONFIG1 volume create --name t1volume
     [ "$status" -eq 0 ]
     [[ "$output" == "t1volume" ]]
@@ -96,19 +97,16 @@ load cli_helpers
 	
 	# without name
 	run docker -H $SWARM_HOST --config $DOCKER_CONFIG1 volume create 
-    [ "$status" -eq 0 ]
-	newvolume=$output
-	run docker -H $SWARM_HOST --config $DOCKER_CONFIG1 volume ls -q
-    [ "$status" -eq 0 ]
-    [[ "$output" != *"Error"* ]]
-	#[ "${#lines[@]}" = 2 ]
-	#run docker -H $SWARM_HOST --config $DOCKER_CONFIG1 volume inspect $newvolume
+    [ "$status" -ne 0 ]
+	#[ "$status" -eq 0 ]
+	#newvolume=$output
+	#run docker -H $SWARM_HOST --config $DOCKER_CONFIG1 volume ls -q
     #[ "$status" -eq 0 ]
     #[[ "$output" != *"Error"* ]]
 
-	run docker -H $SWARM_HOST --config $DOCKER_CONFIG1 volume rm $newvolume
-    [ "$status" -eq 0 ]
-    [[ "$output" == "$newvolume" ]]
+	#run docker -H $SWARM_HOST --config $DOCKER_CONFIG1 volume rm $newvolume
+    #[ "$status" -eq 0 ]
+    #[[ "$output" == "$newvolume" ]]
 
 	# remove volumes
 	run docker -H $SWARM_HOST --config $DOCKER_CONFIG1 volume rm t1volume
@@ -117,17 +115,42 @@ load cli_helpers
 	
 	run docker -H $SWARM_HOST --config $DOCKER_CONFIG2 volume rm t2volume
     [ "$status" -eq 0 ]
-    [[ "$output" == "t2volume" ]]	
-
+    [[ "$output" == "t2volume" ]]
+	
+	run checkInvariant
+    [ $status = 0 ]
 }
 
-@test "Check volume binding" {
-    skip "Volume managment not supported."
+@test "Check volume binding without volume create" {
+	#skip
+	# implicit volume without volume create 
+	run docker -H $SWARM_HOST --config $DOCKER_CONFIG1 run -v implicit_myvolume:/data busybox sh -c "echo tenant1 hello  > /data/file.txt"
+    [ "$status" -eq 0 ]
+	run docker -H $SWARM_HOST --config $DOCKER_CONFIG1 run -v implicit_myvolume:/data busybox sh -c "cat /data/file.txt"
+	[ "$status" -eq 0 ]
+	[[ "$output" == "tenant1 hello" ]]
+	run docker -H $SWARM_HOST --config $DOCKER_CONFIG2 run -v implicit_myvolume:/data busybox sh -c "echo tenant2 hello  > /data/file.txt"
+    [ "$status" -eq 0 ]
+	run docker -H $SWARM_HOST --config $DOCKER_CONFIG2 run -v implicit_myvolume:/data busybox sh -c "cat /data/file.txt"
+	[ "$status" -eq 0 ]
+	[[ "$output" == "tenant2 hello" ]]
+	run docker -H $SWARM_HOST --config $DOCKER_CONFIG1 run -v implicit_myvolume:/data busybox sh -c "cat /data/file.txt"
+	[ "$status" -eq 0 ]
+	[[ "$output" == "tenant1 hello" ]]
+}
+
+
+@test "Check volume binding with volume create" {
+    #skip 
 	run docker -H $SWARM_HOST --config $DOCKER_CONFIG1 volume create --name myvolume
     [ "$status" -eq 0 ]
     [[ "$output" == "myvolume" ]]
 	run docker -H $SWARM_HOST --config $DOCKER_CONFIG1 run -v myvolume:/data --name con1  busybox sh -c "echo tenant1 hello  > /data/file.txt"
     [ "$status" -eq 0 ]
+	run docker -H $SWARM_HOST --config $DOCKER_CONFIG1 run -v myvolume:/data  --name con2  busybox sh -c "cat /data/file.txt"
+	[ "$status" -eq 0 ]
+	[[ "$output" == "tenant1 hello" ]]
+
 	
 	run docker -H $SWARM_HOST --config $DOCKER_CONFIG2 volume create --name myvolume
     [ "$status" -eq 0 ]
@@ -135,8 +158,9 @@ load cli_helpers
 	run docker -H $SWARM_HOST --config $DOCKER_CONFIG2 run -v myvolume:/data --name con2 busybox sh -c "echo tenant2 hello  > /data/file.txt"
     [ "$status" -eq 0 ]
 
-	run docker -H $SWARM_HOST --config $DOCKER_CONFIG1 run -v myvolume:/data  --name con3  busybox sh -c "cat /data/file.txt"
+	run docker -H $SWARM_HOST --config $DOCKER_CONFIG1 run -v myvolume:/data  --name con3 busybox sh -c "cat /data/file.txt"
 	[ "$status" -eq 0 ]
+	echo $output
 	[[ "$output" == "tenant1 hello" ]]
 
 	run docker -H $SWARM_HOST --config $DOCKER_CONFIG2 run -v myvolume:/data --name con4 busybox sh -c "cat /data/file.txt"
@@ -146,6 +170,9 @@ load cli_helpers
 	run docker -H $SWARM_HOST --config $DOCKER_CONFIG1 rm con1
 	[ "$status" -eq 0 ]
 
+	run docker -H $SWARM_HOST --config $DOCKER_CONFIG1 rm con2
+	[ "$status" -eq 0 ]
+	
 	run docker -H $SWARM_HOST --config $DOCKER_CONFIG2 rm con2
 	[ "$status" -eq 0 ]
 	
@@ -161,18 +188,17 @@ load cli_helpers
 	
 	run docker -H $SWARM_HOST --config $DOCKER_CONFIG2 volume rm myvolume
 	[ "$status" -eq 0 ]
-	[[ "$output" == "myvolume" ]]	
-
-
-
+	[[ "$output" == "myvolume" ]]
 	
-	# implicit volume without volume create 
-	run docker -H $SWARM_HOST --config $DOCKER_CONFIG1 run -v implicit_myvolume:/data busybox sh -c "echo tenant1 hello  > /data/file.txt"
-    [ "$status" -eq 0 ]
-	run docker -H $SWARM_HOST --config $DOCKER_CONFIG1 run -v implicit_myvolume:/data busybox sh -c "cat /data/file.txt"
-	[ "$status" -eq 0 ]
-	[[ "$output" == "tenant1 hello" ]]
-	
+	run checkInvariant
+    [ $status = 0 ]
+
+}	
+
+
+
+@test "Check volume mount to host file system not permitted" {
+    skip	
 	# error case trying volume mount to host file system not permitted
 	run docker -H $SWARM_HOST --config $DOCKER_CONFIG1 run -v /tmp:/data busybox sh -c "echo tenant1 hello  > /data/file.txt"
     [ "$status" -ne 0 ]
@@ -180,9 +206,11 @@ load cli_helpers
 	
 	run checkInvariant
     [ $status = 0 ]
-
-
 }
+	
+
+
+
 
 
 

@@ -134,6 +134,11 @@ const (
 	NETWORK_DISCONNECT CommandEnum = "networkdisconnect"
 	NETWORK_CREATE     CommandEnum = "networkcreate"
 	NETWORK_DELETE     CommandEnum = "networkdelete"
+	//SKIP ...
+	VOLUMES_LIST   CommandEnum = "volumeslist"
+	VOLUME_INSPECT CommandEnum = "volumeinspect"
+	VOLUME_CREATE  CommandEnum = "volumecreate"
+	VOLUME_DELETE  CommandEnum = "volumedelete"
 
 	//SKIP ...
 	//POST
@@ -193,6 +198,10 @@ func ParseCommand(r *http.Request) CommandEnum {
 		invMapmap["networkcreate"] = NETWORK_CREATE
 		invMapmap["networkdelete"] = NETWORK_DELETE
 		//SKIP ...
+		invMapmap["volumeslist"] = VOLUMES_LIST
+		invMapmap["volumeinspect"] = VOLUME_INSPECT
+		invMapmap["volumecreate"] = VOLUME_CREATE
+		invMapmap["volumedelete"] = VOLUME_DELETE
 		//POST
 		invMapmap["containerscreate"] = CONTAINER_CREATE
 		invMapmap["containerkill"] = CONTAINER_KILL
@@ -226,12 +235,14 @@ func ParseCommand(r *http.Request) CommandEnum {
 
 var containersRegexp = regexp.MustCompile("/containers/(.*)/(.*)|/containers/(\\w+)")
 var networksRegexp = regexp.MustCompile("/networks/(.*)/(.*)|/networks/(\\w+)")
+var volumesRegexp = regexp.MustCompile("/volumes/(.*)/(.*)|/volumes/(\\w+)")
 var clusterRegExp = regexp.MustCompile("/(.*)/(.*)")
 var imagesRegexp = regexp.MustCompile("/images/(.*)/(.*)|/images/(\\w+)")
 
 func commandParser(r *http.Request) string {
 	containersParams := containersRegexp.FindStringSubmatch(r.URL.Path)
 	networksParams := networksRegexp.FindStringSubmatch(r.URL.Path)
+	volumesParams := volumesRegexp.FindStringSubmatch(r.URL.Path)
 	clusterParams := clusterRegExp.FindStringSubmatch(r.URL.Path)
 	imagesParams := imagesRegexp.FindStringSubmatch(r.URL.Path)
 
@@ -239,6 +250,7 @@ func commandParser(r *http.Request) string {
 	log.Debug(networksParams)
 	log.Debug(clusterParams)
 	log.Debug(imagesParams)
+	log.Debug(volumesParams)
 
 	switch r.Method {
 	case "DELETE":
@@ -250,6 +262,9 @@ func commandParser(r *http.Request) string {
 		}
 		if len(imagesParams) > 0 {
 			return "imagedelete"
+		}
+		if len(volumesParams) > 0 {
+			return "volumedelete"
 		}
 
 	case "GET", "POST":
@@ -279,6 +294,22 @@ func commandParser(r *http.Request) string {
 		} else if len(networksParams) == 4 {
 			return "network" + networksParams[2]
 		}
+
+		if strings.HasSuffix(r.URL.Path, "/volumes") ||
+			strings.HasSuffix(r.URL.Path, "/volumes/") ||
+			strings.Contains(r.RequestURI, "/volumes?") {
+			return "volumeslist"
+		}
+		if len(volumesParams) == 4 && volumesParams[3] != "" {
+			if volumesParams[3] == "create" {
+				return "volumecreate"
+			}
+			return "volumeinspect"
+		} else {
+			log.Debugf("I am here", volumesParams)
+			return "volumeinspect"
+		}
+
 		if len(clusterParams) == 3 && (clusterParams[2] == "start" || clusterParams[2] == "resize" || clusterParams[2] == "json") {
 			log.Debug("A3")
 			return "exec" + clusterParams[2]

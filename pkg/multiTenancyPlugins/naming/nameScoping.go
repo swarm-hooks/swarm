@@ -6,12 +6,14 @@ import (
 	"errors"
 	"fmt"
 	log "github.com/Sirupsen/logrus"
+	apitypes "github.com/docker/engine-api/types"
 	"github.com/docker/swarm/cluster"
 	clusterParams "github.com/docker/swarm/cluster"
 	"github.com/docker/swarm/pkg/multiTenancyPlugins/headers"
 	"github.com/docker/swarm/pkg/multiTenancyPlugins/pluginAPI"
 	"github.com/docker/swarm/pkg/multiTenancyPlugins/utils"
 	"github.com/gorilla/mux"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -22,7 +24,6 @@ const NOTAUTHORIZED_ERROR = "No such container or the user is not authorized for
 const CONTAINER_NOT_OWNED_INFO = "container not owned by current tenant info."
 const CONTAINER_REFERENCE_NOT_FOR_CONTAINER_INFO = "container reference does not match this container info."
 
-//AuthenticationImpl - implementation of plugin API
 type DefaultNameScopingImpl struct {
 	nextHandler pluginAPI.Handler
 }
@@ -63,7 +64,7 @@ func (nameScoping *DefaultNameScopingImpl) Handle(command utils.CommandEnum, clu
 			errInfo.Err = err
 			return errInfo
 		}
-
+		config.HostConfig.Binds = getVolumeBindings(r, config.HostConfig.Binds)
 		if len(reqBody) > 0 {
 			if err := json.NewEncoder(&buf).Encode(config); err != nil {
 				log.Error(err)
@@ -72,7 +73,6 @@ func (nameScoping *DefaultNameScopingImpl) Handle(command utils.CommandEnum, clu
 			}
 			r, _ = utils.ModifyRequest(r, bytes.NewReader(buf.Bytes()), newQuery, "")
 		}
-
 		return nameScoping.nextHandler(command, cluster, w, r, swarmHandler)
 
 	case utils.CONTAINER_JSON, utils.CONTAINER_START, utils.CONTAINER_STOP, utils.CONTAINER_RESTART, utils.CONTAINER_DELETE, utils.CONTAINER_WAIT, utils.CONTAINER_ARCHIVE, utils.CONTAINER_KILL, utils.CONTAINER_PAUSE, utils.CONTAINER_UNPAUSE, utils.CONTAINER_UPDATE, utils.CONTAINER_COPY, utils.CONTAINER_CHANGES, utils.CONTAINER_ATTACH, utils.CONTAINER_LOGS, utils.CONTAINER_TOP, utils.CONTAINER_STATS, utils.CONTAINER_EXEC:
@@ -123,6 +123,46 @@ func (nameScoping *DefaultNameScopingImpl) Handle(command utils.CommandEnum, clu
 
 	case utils.PS, utils.JSON, utils.NETWORKS_LIST, utils.INFO, utils.EVENTS, utils.IMAGES_JSON, utils.EXEC_START, utils.EXEC_RESIZE, utils.EXEC_JSON, utils.IMAGE_PULL, utils.IMAGE_SEARCH, utils.IMAGE_HISTORY, utils.IMAGE_JSON:
 		return nameScoping.nextHandler(command, cluster, w, r, swarmHandler)
+
+	case utils.VOLUME_CREATE:
+		var err error
+		defer r.Body.Close()
+		// append volume name with tenant name.
+		if reqBody, _ := ioutil.ReadAll(r.Body); len(reqBody) > 0 {
+			var request apitypes.VolumeCreateRequest
+			if err = json.NewDecoder(bytes.NewReader(reqBody)).Decode(&request); err != nil {
+				errInfo.Err = err
+				return errInfo
+			}
+			if request.Name, err = nameScopeVolumeName(r, request.Name); err != nil {
+				errInfo.Err = err
+				return errInfo
+			}
+			var buf bytes.Buffer
+			if err = json.NewEncoder(&buf).Encode(request); err != nil {
+				errInfo.Err = err
+				return errInfo
+			}
+			r = closeBody(r, bytes.NewReader(buf.Bytes()))
+		}
+		if errInfo := doReq(nameScoping, command, cluster, w, r, swarmHandler); errInfo.Err != nil {
+			return errInfo
+		}
+
+	case utils.VOLUME_INSPECT:
+		updateVolumeName(r, "volumename")
+		if errInfo := doReq(nameScoping, command, cluster, w, r, swarmHandler); errInfo.Err != nil {
+			return errInfo
+		}
+	case utils.VOLUME_DELETE:
+		updateVolumeName(r, "name")
+		if errInfo := doReq(nameScoping, command, cluster, w, r, swarmHandler); errInfo.Err != nil {
+			return errInfo
+		}
+	case utils.VOLUMES_LIST:
+		if errInfo := doReq(nameScoping, command, cluster, w, r, swarmHandler); errInfo.Err != nil {
+			return errInfo
+		}
 
 	default:
 
@@ -253,4 +293,30 @@ func getID(container *cluster.Container, tenantId string, containerReference str
 		return container.Info.ID, nil
 	}
 	return "", errors.New(CONTAINER_REFERENCE_NOT_FOR_CONTAINER_INFO)
+}
+
+// send request to next handler in record mode.  When it returns remove traces of tenant id in response
+func doReq(nameScoping *DefaultNameScopingImpl, command utils.CommandEnum, cluster cluster.Cluster, w http.ResponseWriter, r *http.Request, swarmHandler http.Handler) utils.ErrorInfo {
+	var errorInfo utils.ErrorInfo
+	rec := httptest.NewRecorder()
+	if errorInfo := nameScoping.nextHandler(command, cluster, rec, r, swarmHandler); errorInfo.Err != nil {
+		return errorInfo
+	}
+	/*POST Swarm*/
+	w.WriteHeader(rec.Code)
+	for k, v := range rec.Header() {
+		w.Header()[k] = v
+	}
+	newBody := bytes.Replace(rec.Body.Bytes(), []byte(r.Header.Get(headers.AuthZTenantIdHeaderName)), []byte(""), -1)
+	w.Write(newBody)
+	return errorInfo
+
+}
+func closeBody(r *http.Request, body io.Reader) *http.Request {
+	rc, ok := body.(io.ReadCloser)
+	if !ok && body != nil {
+		rc = ioutil.NopCloser(body)
+		r.Body = rc
+	}
+	return r
 }
