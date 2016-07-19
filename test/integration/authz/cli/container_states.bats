@@ -41,33 +41,37 @@ load cli_helpers
     run docker -H $SWARM_HOST --config $DOCKER_CONFIG3 inspect top
     [ "$status" -eq 0 ]
     [ "$inspectConfig1" = "$output" ]
-	run docker -H $SWARM_HOST --config $DOCKER_CONFIG3 inspect -f '{{.Id}} {{.Name}} {{.State.Status}}' top 
+	run docker -H $SWARM_HOST --config $DOCKER_CONFIG3 inspect -f '{{.Id}} {{.State.Status}}' top 
     [ "$status" -eq 0 ]
-	[[ "$output" == "$topConfig1Id /top created" ]]	
+	[[ "$output" == "$topConfig1Id created" ]]
+	run docker -H $SWARM_HOST --config $DOCKER_CONFIG3 inspect -f '{{.Config.Labels}}' top 
+    [ "$status" -eq 0 ]
+	[[ "$output" == *"OriginalName:top"* ]]
+	
 	run docker -H $SWARM_HOST --config $DOCKER_CONFIG3 start top  
     [ "$status" -eq 0 ]
     [[ "$output" = "top" ]]
-	run docker -H $SWARM_HOST --config $DOCKER_CONFIG3 inspect -f '{{.Id}} {{.Name}} {{.State.Status}}' top 
+	run docker -H $SWARM_HOST --config $DOCKER_CONFIG3 inspect -f '{{.Id}} {{.State.Status}}' top 
     [ "$status" -eq 0 ]
-	[[ "$output" == "$topConfig1Id /top running" ]]	
+	[[ "$output" == "$topConfig1Id running" ]]	
 	run docker -H $SWARM_HOST --config $DOCKER_CONFIG3 pause top  
     [ "$status" -eq 0 ]
     [[ "$output" = "top" ]]
-	run docker -H $SWARM_HOST --config $DOCKER_CONFIG3 inspect -f '{{.Id}} {{.Name}} {{.State.Status}}' top 
+	run docker -H $SWARM_HOST --config $DOCKER_CONFIG3 inspect -f '{{.Id}} {{.State.Status}}' top 
     [ "$status" -eq 0 ]
-	[[ "$output" == "$topConfig1Id /top paused" ]]	
+	[[ "$output" == "$topConfig1Id paused" ]]	
 	run docker -H $SWARM_HOST --config $DOCKER_CONFIG3 unpause top  
     [ "$status" -eq 0 ]
     [[ "$output" = "top" ]]
-	run docker -H $SWARM_HOST --config $DOCKER_CONFIG3 inspect -f '{{.Id}} {{.Name}} {{.State.Status}}' top 
+	run docker -H $SWARM_HOST --config $DOCKER_CONFIG3 inspect -f '{{.Id}} {{.State.Status}}' top 
     [ "$status" -eq 0 ]
-	[[ "$output" == "$topConfig1Id /top running" ]]
+	[[ "$output" == "$topConfig1Id running" ]]
 	run docker -H $SWARM_HOST --config $DOCKER_CONFIG3 stop top  
     [ "$status" -eq 0 ]
     [[ "$output" = "top" ]]
-	run docker -H $SWARM_HOST --config $DOCKER_CONFIG3 inspect -f '{{.Id}} {{.Name}} {{.State.Status}}' top 
+	run docker -H $SWARM_HOST --config $DOCKER_CONFIG3 inspect -f '{{.Id}} {{.State.Status}}' top 
     [ "$status" -eq 0 ]
-	[[ "$output" == "$topConfig1Id /top exited" ]]	
+	[[ "$output" == "$topConfig1Id exited" ]]	
 
     run checkInvariant
     [ $status = 0 ]
