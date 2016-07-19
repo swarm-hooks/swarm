@@ -153,6 +153,7 @@ const (
 	CONTAINER_EXEC    CommandEnum = "containerexec"
 	EXEC_START        CommandEnum = "execstart"
 	EXEC_RESIZE       CommandEnum = "execresize"
+	EXEC_JSON         CommandEnum = "execjson"
 	//SKIP ...
 
 	CONTAINER_DELETE CommandEnum = "containerdelete"
@@ -209,6 +210,7 @@ func ParseCommand(r *http.Request) CommandEnum {
 		invMapmap["containerexec"] = CONTAINER_EXEC
 		invMapmap["execstart"] = EXEC_START
 		invMapmap["execresize"] = EXEC_RESIZE
+		invMapmap["execjson"] = EXEC_JSON
 		//SKIP ...
 		invMapmap["containerdelete"] = CONTAINER_DELETE
 
