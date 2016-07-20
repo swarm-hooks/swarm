@@ -26,9 +26,10 @@ load cli_helpers
     run docker -H $SWARM_HOST --config $DOCKER_CONFIG1 inspect busy1
     [ "$status" -eq 0 ]
 	inspectConfig1=$output
-	run docker -H $SWARM_HOST --config $DOCKER_CONFIG1 inspect -f '{{.Name}} {{.State.Status}}' busy1
+	run docker -H $SWARM_HOST --config $DOCKER_CONFIG1 inspect -f '{{.State.Status}} {{.Config.Labels}}' busy1
     [ "$status" -eq 0 ]
-	[[ "$output" == "/busy1 exited" ]]
+	[[ "$output" == "exited"* ]]
+	[[ "$output" == *"OriginalName:busy1"* ]]
 	run docker -H $SWARM_HOST --config $DOCKER_CONFIG1 inspect -f '{{.Id}}' busy1 
     [ "$status" -eq 0 ]
 	config1Busy1Id=$output
@@ -81,10 +82,13 @@ load cli_helpers
 	run docker -H $SWARM_HOST --config $DOCKER_CONFIG3 inspect $loop1Config1Id
     [ "$status" -eq 0 ]
     [ "$inspectConfig1" = "$output" ]
-	run docker -H $SWARM_HOST --config $DOCKER_CONFIG1 inspect -f '{{.Id}} {{.Name}} {{.State.Status}}' loop1 
+	run docker -H $SWARM_HOST --config $DOCKER_CONFIG1 inspect -f '{{.Id}} {{.State.Status}}' loop1 
     [ "$status" -eq 0 ]
-	[[ "$output" == "$loop1Config1Id /loop1 running" ]]
- 
+	[[ "$output" == "$loop1Config1Id running" ]]
+	run docker -H $SWARM_HOST --config $DOCKER_CONFIG1 inspect -f '{{.Config.Labels}}' loop1 
+    [ "$status" -eq 0 ]
+	[[ "$output" == *"OriginalName:loop1"* ]]
+	
     # same name different tenant
 	run notAuthorized $DOCKER_CONFIG2 loop1
 	[ "$status" -eq 0 ]
@@ -103,9 +107,13 @@ load cli_helpers
 	loop1Config2Id=$output
 	[[ "$loop1Config1Id" != "$loop1Config2Id" ]]
 	
-	run docker -H $SWARM_HOST --config $DOCKER_CONFIG2 inspect -f '{{.Id}} {{.Name}} {{.State.Status}}' loop1 
+	run docker -H $SWARM_HOST --config $DOCKER_CONFIG2 inspect -f '{{.Id}} {{.State.Status}}' loop1 
     [ "$status" -eq 0 ]
-	[[ "$output" == "$loop1Config2Id /loop1 running" ]]
+	[[ "$output" == "$loop1Config2Id running" ]]
+	run docker -H $SWARM_HOST --config $DOCKER_CONFIG2 inspect -f '{{.Config.Labels}}' loop1 
+    [ "$status" -eq 0 ]
+	[[ "$output" == *"OriginalName:loop1"* ]]
+
    
 
     # different user of tenant
@@ -134,7 +142,7 @@ load cli_helpers
 }
 
 @test "Check run and inspect with daemons no name" {
-    #skip
+    skip  "no name tests are problematic in meso since the inspect Name field is not correct"
     # run daemons
     run docker -H $SWARM_HOST --config $DOCKER_CONFIG1 run -d ubuntu /bin/sh -c "while true; do echo Hello world; sleep 1; done"  
     [ "$status" -eq 0 ]
