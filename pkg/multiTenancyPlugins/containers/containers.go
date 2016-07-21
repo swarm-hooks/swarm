@@ -61,3 +61,10 @@ func AddContainerMapping(container *cluster.Container, tenant string) {
 		containers[strings.TrimPrefix(name, "/")] = tenant
 	}
 }
+
+func IsOwnedByTenant(tenant string, container string) bool {
+	if containers[container] == tenant || containers[container+tenant] == tenant {
+		return true
+	}
+	return false
+}
