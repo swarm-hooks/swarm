@@ -16,7 +16,7 @@ import (
 	"github.com/docker/swarm/pkg/authZ/flavors"
 	"github.com/docker/swarm/pkg/authZ/headers"
 	"github.com/docker/swarm/pkg/multiTenancyPlugins/utils"
-	"github.com/samalba/dockerclient"
+	containertypes "github.com/docker/engine-api/types/container"
 )
 
 type KeyStoneAPI struct{ quotaAPI QuotaAPI }
@@ -77,9 +77,10 @@ func (this *KeyStoneAPI) Init() error {
 // 1- Validate Token
 // 2- Get ACLs or Lable for your valid token
 // 3- Set up cache to save Keystone call
-func (this *KeyStoneAPI) ValidateRequest(cluster cluster.Cluster, eventType states.EventEnum, w http.ResponseWriter, r *http.Request, reqBody []byte, containerConfig dockerclient.ContainerConfig) (states.ApprovalEnum, *utils.ValidationOutPutDTO) {
+func (this *KeyStoneAPI) ValidateRequest(cluster cluster.Cluster, eventType states.EventEnum, w http.ResponseWriter, r *http.Request, reqBody []byte, oldconfig utils.OldContainerConfig) (states.ApprovalEnum, *utils.ValidationOutPutDTO) {
 	log.Debug("ValidateRequest Keystone")
-	log.Debugf("%+v\n", containerConfig)
+	config := oldconfig.ContainerConfig
+	log.Debugf("%+v\n", config)
 	tokenToValidate := r.Header.Get(headers.AuthZTokenHeaderName)
 	tokenToValidate = strings.TrimSpace(tokenToValidate)
 	tenantIdToValidate := strings.TrimSpace(r.Header.Get(headers.AuthZTenantIdHeaderName))
@@ -104,9 +105,9 @@ func (this *KeyStoneAPI) ValidateRequest(cluster cluster.Cluster, eventType stat
 		if !flavors.IsFlavorValid(containerConfig) {
 			return states.NotApproved, &utils.ValidationOutPutDTO{ErrorMessage: "No flavor matches resource request!"}
 		}
-		valid, dto := utils.CheckContainerReferences(cluster, tenantIdToValidate, containerConfig)
+		valid, dto := utils.CheckContainerReferences(cluster, tenantIdToValidate, oldconfig)
 		if valid {
-			if dto.Binds, err = utils.CheckVolumeBinds(tenantIdToValidate, containerConfig); err != nil {
+			if dto.Binds, err = utils.CheckVolumeBinds(tenantIdToValidate, oldconfig); err != nil {
 				valid = false
 				dto.ErrorMessage = err.Error()
 			}

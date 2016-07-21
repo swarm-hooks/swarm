@@ -10,11 +10,12 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/docker/swarm/cluster"
+	clusterParams "github.com/docker/swarm/cluster"
 	"github.com/docker/swarm/pkg/multiTenancyPlugins/headers"
 	"github.com/docker/swarm/pkg/multiTenancyPlugins/pluginAPI"
 	"github.com/docker/swarm/pkg/multiTenancyPlugins/utils"
 	"github.com/gorilla/mux"
-	"github.com/samalba/dockerclient"
+	containertypes "github.com/docker/engine-api/types/container"
 )
 
 var enforceQuota = os.Getenv("SWARM_ENFORCE_QUOTA")
@@ -48,37 +49,63 @@ func (quotaImpl *DefaultQuotaImpl) Handle(command utils.CommandEnum, cluster clu
 
 	switch command {
 	case utils.CONTAINER_CREATE:
-		defer r.Body.Close()
-		if reqBody, _ := ioutil.ReadAll(r.Body); len(reqBody) > 0 {
-			var containerConfig dockerclient.ContainerConfig
-			if err := json.NewDecoder(bytes.NewReader(reqBody)).Decode(&containerConfig); err != nil {
-				return err
+		var (
+			defaultMemorySwappiness = int64(-1)
+			//name                    = r.Form.Get("name")
+			config  = clusterParams.ContainerConfig{
+				HostConfig: containertypes.HostConfig{
+					Resources: containertypes.Resources{
+						MemorySwappiness: &(defaultMemorySwappiness),
+					},
+				 },
 			}
-			memory := containerConfig.HostConfig.Memory
-			tenant := r.Header.Get(headers.AuthZTenantIdHeaderName)
-			// Increase tenant quota usage if quota limit isn't exceeded.
-			err := quotaMgmt.CheckAndIncreaseQuota(tenant, memory)
-			if err != nil {
-				log.Error(err)
-				return err
-			}
-			r.Body = ioutil.NopCloser(bytes.NewBuffer(reqBody))
-			rec := httptest.NewRecorder()
+		)
+		
+		oldconfig := clusterParams.OldContainerConfig{
+		ContainerConfig: config,
+		Memory:          0,
+		MemorySwap:      0,
+		CPUShares:       0,
+		CPUSet:          "",
+		}
 
-			swarmHandler.ServeHTTP(rec, r)
-			/*POST Swarm*/
-			w.WriteHeader(rec.Code)
-			for k, v := range rec.Header() {
-				w.Header()[k] = v
-			}
-			w.Write(rec.Body.Bytes())
-			//only if create container succeeded - add container
-			err = quotaMgmt.HandleCreateResponse(rec.Code, rec.Body.Bytes(), tenant, memory) //checks that createContainer succeeded
-			if err != nil {
+		var reqBody []byte
+		defer r.Body.Close()
+		if reqBody, _ = ioutil.ReadAll(r.Body); len(reqBody) > 0 {
+			if err := json.NewDecoder(bytes.NewReader(reqBody)).Decode(&oldconfig); err != nil {
 				log.Error(err)
 				return err
 			}
 		}
+		// make sure HostConfig fields are consolidated before creating container
+		clusterParams.ConsolidateResourceFields(&oldconfig)
+		config = oldconfig.ContainerConfig
+		
+		memory := config.HostConfig.Memory
+		tenant := r.Header.Get(headers.AuthZTenantIdHeaderName)
+		// Increase tenant quota usage if quota limit isn't exceeded.
+		err := quotaMgmt.CheckAndIncreaseQuota(tenant, memory)
+		if err != nil {
+			log.Error(err)
+			return err
+		}
+		r.Body = ioutil.NopCloser(bytes.NewBuffer(reqBody))
+		rec := httptest.NewRecorder()
+
+		swarmHandler.ServeHTTP(rec, r)
+		/*POST Swarm*/
+		w.WriteHeader(rec.Code)
+		for k, v := range rec.Header() {
+			w.Header()[k] = v
+		}
+		w.Write(rec.Body.Bytes())
+		//only if create container succeeded - add container
+		err = quotaMgmt.HandleCreateResponse(rec.Code, rec.Body.Bytes(), tenant, memory) //checks that createContainer succeeded
+		if err != nil {
+			log.Error(err)
+			return err
+		}
+	
 	case utils.CONTAINER_DELETE:
 		resourceLongID := mux.Vars(r)["name"]
 		tenant := r.Header.Get(headers.AuthZTenantIdHeaderName)
