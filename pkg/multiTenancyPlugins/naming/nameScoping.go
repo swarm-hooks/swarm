@@ -7,6 +7,7 @@ import (
 	"fmt"
 	log "github.com/Sirupsen/logrus"
 	"github.com/docker/swarm/cluster"
+	"github.com/docker/swarm/pkg/multiTenancyPlugins/containers"
 	"github.com/docker/swarm/pkg/multiTenancyPlugins/headers"
 	"github.com/docker/swarm/pkg/multiTenancyPlugins/pluginAPI"
 	"github.com/docker/swarm/pkg/multiTenancyPlugins/utils"
@@ -33,31 +34,33 @@ func NewNameScoping(handler pluginAPI.Handler) pluginAPI.PluginAPI {
 	return nameScoping
 }
 
-func getContainerID(cluster cluster.Cluster, r *http.Request, containerName string) string {
-	tenantId := r.Header.Get(headers.AuthZTenantIdHeaderName)
+func getContainer(cluster cluster.Cluster, r *http.Request) *cluster.Container {
+	containerName := mux.Vars(r)["name"]
 	for _, container := range cluster.Containers() {
-		if container.Info.ID == containerName {
+		if container.Info.ID == containerName && container.Labels[headers.TenancyLabel] == r.Header.Get(headers.AuthZTenantIdHeaderName) {
 			//Match by Full Id
-			return container.Info.ID
+			return container
 		} else {
 			for _, name := range container.Names {
-				if (containerName == strings.TrimPrefix(name, "/") || containerName == container.Labels[headers.OriginalNameLabel]) && container.Labels[headers.TenancyLabel] == tenantId {
+				if (containerName == strings.TrimPrefix(name, "/") || containerName == container.Labels[headers.OriginalNameLabel]) && container.Labels[headers.TenancyLabel] == r.Header.Get(headers.AuthZTenantIdHeaderName) {
 					//Match by Name
-					return container.Info.ID
+					return container
 				}
 			}
 		}
-		if strings.HasPrefix(container.Info.ID, containerName) {
+		if strings.HasPrefix(container.Info.ID, containerName) && container.Labels[headers.TenancyLabel] == r.Header.Get(headers.AuthZTenantIdHeaderName) {
 			//Match by short ID
-			return container.Info.ID
+			return container
 		}
 	}
-	return containerName
+	return nil
 }
 
 //Handle authentication on request and call next plugin handler.
 func (nameScoping *DefaultNameScopingImpl) Handle(command utils.CommandEnum, cluster cluster.Cluster, w http.ResponseWriter, r *http.Request, swarmHandler http.Handler) error {
 	log.Debug("Plugin nameScoping Got command: " + command)
+	tenant := r.Header.Get(headers.AuthZTenantIdHeaderName)
+	containerName := mux.Vars(r)["name"]
 	switch command {
 	case utils.CONTAINER_CREATE:
 		var newQuery string
@@ -91,22 +94,33 @@ func (nameScoping *DefaultNameScopingImpl) Handle(command utils.CommandEnum, clu
 
 		return nameScoping.nextHandler(command, cluster, w, r, swarmHandler)
 
-	//Find the container and replace the name with ID
 	case utils.CONTAINER_JSON:
-		if resourceName := mux.Vars(r)["name"]; resourceName != "" {
-			containerName := mux.Vars(r)["name"]
-			conatinerID := getContainerID(cluster, r, containerName)
-			mux.Vars(r)["name"] = conatinerID
-			r.URL.Path = strings.Replace(r.URL.Path, containerName, conatinerID, 1)
-			return nameScoping.nextHandler(command, cluster, w, r, swarmHandler)
-		} else {
-			log.Debug("What now?")
+		if containers.IsContainerExists(containerName + tenant) { //got container name
+			r.URL.Path = strings.Replace(r.URL.Path, containerName, containerName+tenant, 1)
+			mux.Vars(r)["name"] = containerName + tenant
+		} else if !containers.IsContainerExists(containerName) {
+			//replace by full ID and add to the map.
+			if container := getContainer(cluster, r); container != nil {
+				mux.Vars(r)["name"] = container.Info.ID
+				r.URL.Path = strings.Replace(r.URL.Path, containerName, container.Info.ID, 1)
+				containers.AddContainerMapping(container, tenant)
+			}
 		}
+		return nameScoping.nextHandler(command, cluster, w, r, swarmHandler)
+		// TODO: Cleanup inspect container response here
+
 	case utils.CONTAINER_START, utils.CONTAINER_STOP, utils.CONTAINER_RESTART, utils.CONTAINER_DELETE, utils.CONTAINER_WAIT, utils.CONTAINER_ARCHIVE, utils.CONTAINER_KILL, utils.CONTAINER_PAUSE, utils.CONTAINER_UNPAUSE, utils.CONTAINER_UPDATE, utils.CONTAINER_COPY, utils.CONTAINER_CHANGES, utils.CONTAINER_ATTACH, utils.CONTAINER_LOGS, utils.CONTAINER_TOP, utils.CONTAINER_STATS, utils.CONTAINER_EXEC:
-		containerName := mux.Vars(r)["name"]
-		conatinerID := getContainerID(cluster, r, containerName)
-		mux.Vars(r)["name"] = conatinerID
-		r.URL.Path = strings.Replace(r.URL.Path, containerName, conatinerID, 1)
+		if containers.IsContainerExists(containerName + tenant) { //got container name
+			r.URL.Path = strings.Replace(r.URL.Path, containerName, containerName+tenant, 1)
+			mux.Vars(r)["name"] = containerName + tenant
+		} else if !containers.IsContainerExists(containerName) {
+			//replace by full ID and add to the map.
+			if container := getContainer(cluster, r); container != nil {
+				mux.Vars(r)["name"] = container.Info.ID
+				r.URL.Path = strings.Replace(r.URL.Path, containerName, container.Info.ID, 1)
+				containers.AddContainerMapping(container, tenant)
+			}
+		}
 		return nameScoping.nextHandler(command, cluster, w, r, swarmHandler)
 
 	case utils.NETWORK_CONNECT, utils.NETWORK_DISCONNECT:
