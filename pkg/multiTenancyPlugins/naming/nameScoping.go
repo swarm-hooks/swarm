@@ -94,22 +94,7 @@ func (nameScoping *DefaultNameScopingImpl) Handle(command utils.CommandEnum, clu
 
 		return nameScoping.nextHandler(command, cluster, w, r, swarmHandler)
 
-	case utils.CONTAINER_JSON:
-		if containers.IsContainerExists(containerName + tenant) { //got container name
-			r.URL.Path = strings.Replace(r.URL.Path, containerName, containerName+tenant, 1)
-			mux.Vars(r)["name"] = containerName + tenant
-		} else if !containers.IsContainerExists(containerName) {
-			//replace by full ID and add to the map.
-			if container := getContainer(cluster, r); container != nil {
-				mux.Vars(r)["name"] = container.Info.ID
-				r.URL.Path = strings.Replace(r.URL.Path, containerName, container.Info.ID, 1)
-				containers.AddContainerMapping(container, tenant)
-			}
-		}
-		return nameScoping.nextHandler(command, cluster, w, r, swarmHandler)
-		// TODO: Cleanup inspect container response here
-
-	case utils.CONTAINER_START, utils.CONTAINER_STOP, utils.CONTAINER_RESTART, utils.CONTAINER_DELETE, utils.CONTAINER_WAIT, utils.CONTAINER_ARCHIVE, utils.CONTAINER_KILL, utils.CONTAINER_PAUSE, utils.CONTAINER_UNPAUSE, utils.CONTAINER_UPDATE, utils.CONTAINER_COPY, utils.CONTAINER_CHANGES, utils.CONTAINER_ATTACH, utils.CONTAINER_LOGS, utils.CONTAINER_TOP, utils.CONTAINER_STATS, utils.CONTAINER_EXEC:
+	case utils.CONTAINER_JSON, utils.CONTAINER_START, utils.CONTAINER_STOP, utils.CONTAINER_RESTART, utils.CONTAINER_DELETE, utils.CONTAINER_WAIT, utils.CONTAINER_ARCHIVE, utils.CONTAINER_KILL, utils.CONTAINER_PAUSE, utils.CONTAINER_UNPAUSE, utils.CONTAINER_UPDATE, utils.CONTAINER_COPY, utils.CONTAINER_CHANGES, utils.CONTAINER_ATTACH, utils.CONTAINER_LOGS, utils.CONTAINER_TOP, utils.CONTAINER_STATS, utils.CONTAINER_EXEC:
 		if containers.IsContainerExists(containerName + tenant) { //got container name
 			r.URL.Path = strings.Replace(r.URL.Path, containerName, containerName+tenant, 1)
 			mux.Vars(r)["name"] = containerName + tenant

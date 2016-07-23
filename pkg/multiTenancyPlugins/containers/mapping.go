@@ -36,25 +36,29 @@ func (mapping *MappingImpl) Handle(command utils.CommandEnum, cluster cluster.Cl
 	case utils.CONTAINER_CREATE:
 		containerName := r.URL.Query().Get("name")
 		rec := httptest.NewRecorder()
-		err := mapping.nextHandler(command, cluster, rec, r, swarmHandler)
+		if err := mapping.nextHandler(command, cluster, rec, r, swarmHandler); err != nil {
+			return err
+		}
 		w.WriteHeader(rec.Code)
 		for k, v := range rec.Header() {
 			w.Header()[k] = v
 		}
 		w.Write(rec.Body.Bytes())
 		createContainerMapping(rec.Code, rec.Body.Bytes(), r.Header.Get(headers.AuthZTenantIdHeaderName), containerName)
-		if err != nil {
-			return err
-		}
 
 	case utils.CONTAINER_DELETE:
 		container := getContainer(cluster, r)
 		rec := httptest.NewRecorder()
-		err := mapping.nextHandler(command, cluster, rec, r, swarmHandler)
-		deleteContainerMapping(rec.Code, container)
-		if err != nil {
+		if err := mapping.nextHandler(command, cluster, rec, r, swarmHandler); err != nil {
 			return err
 		}
+		w.WriteHeader(rec.Code)
+		for k, v := range rec.Header() {
+			w.Header()[k] = v
+		}
+		w.Write(rec.Body.Bytes())
+		deleteContainerMapping(rec.Code, container)
+		
 	default:
 		return mapping.nextHandler(command, cluster, w, r, swarmHandler)
 	}
