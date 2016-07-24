@@ -12,7 +12,7 @@ import (
 	"github.com/docker/swarm/cluster"
 	"github.com/docker/swarm/pkg/multiTenancyPlugins/pluginAPI"
 	"github.com/docker/swarm/pkg/multiTenancyPlugins/utils"
-	"github.com/samalba/dockerclient"
+	clusterParams "github.com/docker/swarm/cluster"
 )
 
 type DefaultFlavorsImpl struct {
@@ -84,11 +84,15 @@ func (flavorsImpl *DefaultFlavorsImpl) Handle(command utils.CommandEnum, cluster
 	if reqBody, _ := ioutil.ReadAll(r.Body); len(reqBody) > 0 {
 		var flavorIn Flavor
 		var buf bytes.Buffer
-		var containerConfig dockerclient.ContainerConfig
-		if err := json.NewDecoder(bytes.NewReader(reqBody)).Decode(&containerConfig); err != nil {
+		var oldconfig clusterParams.OldContainerConfig
+		if err := json.NewDecoder(bytes.NewReader(reqBody)).Decode(&oldconfig); err != nil {
 			return err
 		}
-		flavorIn.Memory = containerConfig.HostConfig.Memory
+		
+		// make sure HostConfig fields are consolidated before creating container
+		clusterParams.ConsolidateResourceFields(&oldconfig)
+		
+		flavorIn.Memory = oldconfig.ContainerConfig.HostConfig.Memory
 		_key := "default"
 		for key, value := range flavors {
 			if value == flavorIn {
@@ -97,8 +101,10 @@ func (flavorsImpl *DefaultFlavorsImpl) Handle(command utils.CommandEnum, cluster
 			}
 		}
 		log.Debug("Plugin flavors apply flavor: ", _key)
-		containerConfig.HostConfig.Memory = flavors[_key].Memory
-		if err := json.NewEncoder(&buf).Encode(containerConfig); err != nil {
+		
+		oldconfig.ContainerConfig.HostConfig.Memory = flavors[_key].Memory
+		
+		if err := json.NewEncoder(&buf).Encode(oldconfig); err != nil {
 			return err
 		}
 		r, _ = utils.ModifyRequest(r, bytes.NewReader(buf.Bytes()), "", "")
