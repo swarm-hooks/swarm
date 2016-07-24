@@ -10,9 +10,9 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/docker/swarm/cluster"
+	clusterParams "github.com/docker/swarm/cluster"
 	"github.com/docker/swarm/pkg/multiTenancyPlugins/pluginAPI"
 	"github.com/docker/swarm/pkg/multiTenancyPlugins/utils"
-	clusterParams "github.com/docker/swarm/cluster"
 )
 
 type DefaultFlavorsImpl struct {
@@ -88,10 +88,10 @@ func (flavorsImpl *DefaultFlavorsImpl) Handle(command utils.CommandEnum, cluster
 		if err := json.NewDecoder(bytes.NewReader(reqBody)).Decode(&oldconfig); err != nil {
 			return err
 		}
-		
+
 		// make sure HostConfig fields are consolidated before creating container
 		clusterParams.ConsolidateResourceFields(&oldconfig)
-		
+
 		flavorIn.Memory = oldconfig.ContainerConfig.HostConfig.Memory
 		_key := "default"
 		for key, value := range flavors {
@@ -101,9 +101,9 @@ func (flavorsImpl *DefaultFlavorsImpl) Handle(command utils.CommandEnum, cluster
 			}
 		}
 		log.Debug("Plugin flavors apply flavor: ", _key)
-		
+
 		oldconfig.ContainerConfig.HostConfig.Memory = flavors[_key].Memory
-		
+
 		if err := json.NewEncoder(&buf).Encode(oldconfig); err != nil {
 			return err
 		}
