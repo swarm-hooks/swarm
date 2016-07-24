@@ -23,7 +23,10 @@ func ConnectDisconnect(cluster cluster.Cluster, r *http.Request) error {
 			if err := json.NewDecoder(bytes.NewReader(reqBody)).Decode(&request); err != nil {
 				return err
 			}
-			conatinerID := getContainerID(cluster, r, request.Container)
+			conatinerID, err := getContainerID(cluster, r, request.Container)
+			if err != nil {
+				return err
+			}
 			request.Container = conatinerID
 			var buf bytes.Buffer
 			if err := json.NewEncoder(&buf).Encode(request); err != nil {
