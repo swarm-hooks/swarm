@@ -92,3 +92,25 @@ func getNetworkID(cluster cluster.Cluster, r *http.Request, networkId string) st
 	}
 	return networkId
 }
+
+func getContainerID(cluster cluster.Cluster, r *http.Request, containerName string) string {
+	tenantId := r.Header.Get(headers.AuthZTenantIdHeaderName)
+	for _, container := range cluster.Containers() {
+		if container.Info.ID == containerName {
+			//Match by Full Id
+			return container.Info.ID
+		} else {
+			for _, name := range container.Names {
+				if (containerName == name || containerName == container.Labels[headers.OriginalNameLabel]) && container.Labels[headers.TenancyLabel] == tenantId {
+					//Match by Name
+					return container.Info.ID
+				}
+			}
+		}
+		if strings.HasPrefix(container.Info.ID, containerName) {
+			//Match by short ID
+			return container.Info.ID
+		}
+	}
+	return containerName
+}

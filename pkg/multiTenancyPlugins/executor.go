@@ -6,6 +6,7 @@ import (
 	"github.com/docker/swarm/pkg/multiTenancyPlugins/apifilter"
 	"github.com/docker/swarm/pkg/multiTenancyPlugins/authentication"
 	"github.com/docker/swarm/pkg/multiTenancyPlugins/authorization"
+	"github.com/docker/swarm/pkg/multiTenancyPlugins/containers"
 	"github.com/docker/swarm/pkg/multiTenancyPlugins/flavors"
 	"github.com/docker/swarm/pkg/multiTenancyPlugins/keystone"
 	"github.com/docker/swarm/pkg/multiTenancyPlugins/naming"
@@ -45,7 +46,8 @@ func (*Executor) Init() {
 	quotaPlugin := quota.NewQuota(nil)
 	authorizationPlugin := authorization.NewAuthorization(quotaPlugin.Handle)
 	nameScoping := namescoping.NewNameScoping(authorizationPlugin.Handle)
-	flavorsPlugin := flavors.NewPlugin(nameScoping.Handle)
+	mappingPlugin := containers.NewMapping(nameScoping.Handle)
+	flavorsPlugin := flavors.NewPlugin(mappingPlugin.Handle)
 	apiFilterPlugin := apifilter.NewPlugin(flavorsPlugin.Handle)
 	authenticationPlugin := authentication.NewAuthentication(apiFilterPlugin.Handle)
 	keystonePlugin := keystone.NewPlugin(authenticationPlugin.Handle)
