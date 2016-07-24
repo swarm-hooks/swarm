@@ -93,16 +93,16 @@ func (flavorsImpl *DefaultFlavorsImpl) Handle(command utils.CommandEnum, cluster
 		clusterParams.ConsolidateResourceFields(&oldconfig)
 
 		flavorIn.Memory = oldconfig.ContainerConfig.HostConfig.Memory
-		_key := "default"
+		curKey := "default"
 		for key, value := range flavors {
 			if value == flavorIn {
-				_key = key
+				curKey = key
 				break
 			}
 		}
-		log.Debug("Plugin flavors apply flavor: ", _key)
+		log.Debug("Plugin flavors apply flavor: ", curKey)
 
-		oldconfig.ContainerConfig.HostConfig.Memory = flavors[_key].Memory
+		oldconfig.ContainerConfig.HostConfig.Memory = flavors[curKey].Memory
 
 		if err := json.NewEncoder(&buf).Encode(oldconfig); err != nil {
 			return err

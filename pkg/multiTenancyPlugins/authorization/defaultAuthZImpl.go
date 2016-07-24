@@ -42,7 +42,7 @@ func (defaultauthZ *DefaultAuthZImpl) Handle(command utils.CommandEnum, cluster 
 			}
 			//Disallow a user to create the special labels we inject : headers.TenancyLabel
 			if strings.Contains(string(reqBody), headers.TenancyLabel) == true {
-				return errors.New("Error, special label " + headers.TenancyLabel + " disallowed!")
+				return errors.New("Error, special label " + headers.TenancyLabel + " not allowed!")
 			}
 			// network authorization
 			if err := NetworkAuthorization(cluster, r, string(oldconfig.ContainerConfig.HostConfig.NetworkMode)); err != nil {
