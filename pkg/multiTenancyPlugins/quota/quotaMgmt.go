@@ -5,9 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	log "github.com/Sirupsen/logrus"
+	"github.com/docker/engine-api/types"
 	"github.com/docker/swarm/cluster"
 	"github.com/docker/swarm/pkg/multiTenancyPlugins/headers"
-	"github.com/samalba/dockerclient"
 	"os"
 	"sync"
 	"time"
@@ -70,8 +70,8 @@ func (quota *QuotaMgmt) HandleCreateResponse(returnCode int, body []byte, tenant
 		log.Error(err)
 		return errors.New("Swarm Quota::HandleCreateResponse Create Container failed")
 	}
-	var containerConfig dockerclient.ContainerInfo
-	if err := json.NewDecoder(bytes.NewReader(body)).Decode(&containerConfig); err != nil {
+	var createResp types.ContainerCreateResponse
+	if err := json.NewDecoder(bytes.NewReader(body)).Decode(&createResp); err != nil {
 		//create response failed - container was NOT created on engine	-> decrease quota
 		err2 := quotaService.UpdateRQUsed(tenant, "", "", qp) //Decrease quota
 		_, used_ret, _, _ := quotaService.GetRQ(tenant, "", "")
@@ -81,7 +81,7 @@ func (quota *QuotaMgmt) HandleCreateResponse(returnCode int, body []byte, tenant
 		}
 	}
 
-	id := containerConfig.Id
+	id := createResp.ID
 
 	if tenantQuota, ok := quotas[tenant]; ok {
 		if contInfo, ok := tenantQuota.containers[id]; ok { //in case of delete event before create response arrived

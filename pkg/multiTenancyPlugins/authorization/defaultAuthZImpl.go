@@ -12,11 +12,11 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/docker/swarm/cluster"
+	clusterParams "github.com/docker/swarm/cluster"
 	"github.com/docker/swarm/pkg/multiTenancyPlugins/headers"
 	"github.com/docker/swarm/pkg/multiTenancyPlugins/pluginAPI"
 	"github.com/docker/swarm/pkg/multiTenancyPlugins/utils"
 	"github.com/gorilla/mux"
-	"github.com/samalba/dockerclient"
 )
 
 type DefaultAuthZImpl struct {
@@ -36,21 +36,21 @@ func (defaultauthZ *DefaultAuthZImpl) Handle(command utils.CommandEnum, cluster 
 	case utils.CONTAINER_CREATE:
 		defer r.Body.Close()
 		if reqBody, _ := ioutil.ReadAll(r.Body); len(reqBody) > 0 {
-			var containerConfig dockerclient.ContainerConfig
-			if err := json.NewDecoder(bytes.NewReader(reqBody)).Decode(&containerConfig); err != nil {
+			var oldconfig clusterParams.OldContainerConfig
+			if err := json.NewDecoder(bytes.NewReader(reqBody)).Decode(&oldconfig); err != nil {
 				return err
 			}
 			//Disallow a user to create the special labels we inject : headers.TenancyLabel
 			if strings.Contains(string(reqBody), headers.TenancyLabel) == true {
-				return errors.New("Error, special label " + headers.TenancyLabel + " disallowed!")
+				return errors.New("Error, special label " + headers.TenancyLabel + " not allowed!")
 			}
 			// network authorization
-			if err := NetworkAuthorization(cluster, r, containerConfig.HostConfig.NetworkMode); err != nil {
+			if err := NetworkAuthorization(cluster, r, string(oldconfig.ContainerConfig.HostConfig.NetworkMode)); err != nil {
 				return err
 			}
-			containerConfig.Labels[headers.TenancyLabel] = r.Header.Get(headers.AuthZTenantIdHeaderName)
+			oldconfig.ContainerConfig.Config.Labels[headers.TenancyLabel] = r.Header.Get(headers.AuthZTenantIdHeaderName)
 			var buf bytes.Buffer
-			if err := json.NewEncoder(&buf).Encode(containerConfig); err != nil {
+			if err := json.NewEncoder(&buf).Encode(oldconfig); err != nil {
 				return err
 			}
 			r, _ = utils.ModifyRequest(r, bytes.NewReader(buf.Bytes()), "", "")
