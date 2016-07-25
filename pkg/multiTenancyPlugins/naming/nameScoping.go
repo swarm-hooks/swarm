@@ -6,12 +6,13 @@ import (
 	"errors"
 	"fmt"
 	log "github.com/Sirupsen/logrus"
+	containertypes "github.com/docker/engine-api/types/container"
 	"github.com/docker/swarm/cluster"
+	clusterParams "github.com/docker/swarm/cluster"
 	"github.com/docker/swarm/pkg/multiTenancyPlugins/headers"
 	"github.com/docker/swarm/pkg/multiTenancyPlugins/pluginAPI"
 	"github.com/docker/swarm/pkg/multiTenancyPlugins/utils"
 	"github.com/gorilla/mux"
-	"github.com/samalba/dockerclient"
 	"io/ioutil"
 	"net/http"
 	"strings"
@@ -62,11 +63,11 @@ func (nameScoping *DefaultNameScopingImpl) Handle(command utils.CommandEnum, clu
 	case utils.CONTAINER_CREATE:
 		var newQuery string
 		var buf bytes.Buffer
-		var containerConfig dockerclient.ContainerConfig
+		var oldconfig clusterParams.OldContainerConfig
 		var reqBody []byte
 		defer r.Body.Close()
 		if reqBody, _ = ioutil.ReadAll(r.Body); len(reqBody) > 0 {
-			if err := json.NewDecoder(bytes.NewReader(reqBody)).Decode(&containerConfig); err != nil {
+			if err := json.NewDecoder(bytes.NewReader(reqBody)).Decode(&oldconfig); err != nil {
 				log.Error(err)
 				return err
 			}
@@ -74,15 +75,15 @@ func (nameScoping *DefaultNameScopingImpl) Handle(command utils.CommandEnum, clu
 		if "" != r.URL.Query().Get("name") {
 			log.Debug("Postfixing name with tenantID...")
 			newQuery = strings.Replace(r.RequestURI, r.URL.Query().Get("name"), r.URL.Query().Get("name")+r.Header.Get(headers.AuthZTenantIdHeaderName), 1)
-			containerConfig.Labels[headers.OriginalNameLabel] = r.URL.Query().Get("name")
+			oldconfig.ContainerConfig.Config.Labels[headers.OriginalNameLabel] = r.URL.Query().Get("name")
 		}
-		containerConfig.HostConfig.NetworkMode = getNetworkID(cluster, r, containerConfig.HostConfig.NetworkMode)
-		if err := CheckContainerReferences(cluster, r.Header.Get(headers.AuthZTenantIdHeaderName), &containerConfig); err != nil {
+		oldconfig.ContainerConfig.HostConfig.NetworkMode = containertypes.NetworkMode(getNetworkID(cluster, r, string(oldconfig.ContainerConfig.HostConfig.NetworkMode)))
+		if err := CheckContainerReferences(cluster, r.Header.Get(headers.AuthZTenantIdHeaderName), &oldconfig); err != nil {
 			log.Error(err)
 			return err
 		}
 		if len(reqBody) > 0 {
-			if err := json.NewEncoder(&buf).Encode(containerConfig); err != nil {
+			if err := json.NewEncoder(&buf).Encode(oldconfig); err != nil {
 				log.Error(err)
 				return err
 			}
@@ -134,13 +135,14 @@ func (nameScoping *DefaultNameScopingImpl) Handle(command utils.CommandEnum, clu
 	return nil
 }
 
-func CheckContainerReferences(cluster cluster.Cluster, tenantId string, containerConfig *dockerclient.ContainerConfig) error {
-	log.Debugf("CheckContainerReferences containerConfig: %+v", containerConfig)
+func CheckContainerReferences(cluster cluster.Cluster, tenantId string, oldconfig *clusterParams.OldContainerConfig) error {
+	config := oldconfig.ContainerConfig
+	log.Debugf("CheckContainerReferences containerConfig: %+v", config)
 	// create arrays of container references to pass to getIDsFromContainerReferences
 
 	// create links array
-	linkContainerRefs := make([]string, len(containerConfig.HostConfig.Links))
-	for i, link := range containerConfig.HostConfig.Links {
+	linkContainerRefs := make([]string, len(config.HostConfig.Links))
+	for i, link := range config.HostConfig.Links {
 		// link in form [container reference]:[alias]
 		// : and alias are optional
 		containerRef_alias := strings.SplitN(link, ":", 2)
@@ -150,15 +152,15 @@ func CheckContainerReferences(cluster cluster.Cluster, tenantId string, containe
 	var err error
 	var containerReferenceToIdMap map[string]string
 	containerRefs := make([]string, 0)
-	containerRefs = append(containerRefs, containerConfig.HostConfig.VolumesFrom...)
+	containerRefs = append(containerRefs, config.HostConfig.VolumesFrom...)
 	containerRefs = append(containerRefs, linkContainerRefs...)
 	if containerReferenceToIdMap, err = getIDsFromContainerReferences(cluster, tenantId, containerRefs); err != nil {
 		return err
 	}
 	// ******************update containerConfig******************
 	// update VolumesFrom
-	for i, k := range containerConfig.HostConfig.VolumesFrom {
-		containerConfig.HostConfig.VolumesFrom[i] = containerReferenceToIdMap[k]
+	for i, k := range config.HostConfig.VolumesFrom {
+		config.HostConfig.VolumesFrom[i] = containerReferenceToIdMap[k]
 	}
 
 	// update links
@@ -169,7 +171,7 @@ func CheckContainerReferences(cluster cluster.Cluster, tenantId string, containe
 	// We want to generate a super set of links with no duplicates.  However go does not support a native set,
 	// do we use map that points to an empty structure to simulate a set.
 	linkSet := make(map[string]*struct{})
-	for _, link := range containerConfig.HostConfig.Links {
+	for _, link := range config.HostConfig.Links {
 		containerRef_alias := strings.SplitN(link, ":", 2)
 		containerIdName := strings.TrimSpace(containerRef_alias[0])
 		containerId := containerReferenceToIdMap[containerIdName]
@@ -187,7 +189,7 @@ func CheckContainerReferences(cluster cluster.Cluster, tenantId string, containe
 		links[linksIndex] = containerId_alias
 		linksIndex++
 	}
-	containerConfig.HostConfig.Links = links
+	config.HostConfig.Links = links
 	return nil
 
 }
