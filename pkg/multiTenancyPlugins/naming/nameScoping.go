@@ -34,26 +34,26 @@ func NewNameScoping(handler pluginAPI.Handler) pluginAPI.PluginAPI {
 	return nameScoping
 }
 
-func getContainerID(cluster cluster.Cluster, r *http.Request, containerName string) string {
+func getContainerID(cluster cluster.Cluster, r *http.Request, containerName string) (string, error) {
 	tenantId := r.Header.Get(headers.AuthZTenantIdHeaderName)
 	for _, container := range cluster.Containers() {
 		if container.Info.ID == containerName {
 			//Match by Full Id
-			return container.Info.ID
+			return container.Info.ID, nil
 		} else {
 			for _, name := range container.Names {
 				if (containerName == strings.TrimPrefix(name, "/") || containerName == container.Labels[headers.OriginalNameLabel]) && container.Labels[headers.TenancyLabel] == tenantId {
 					//Match by Name
-					return container.Info.ID
+					return container.Info.ID, nil
 				}
 			}
 		}
 		if strings.HasPrefix(container.Info.ID, containerName) {
 			//Match by short ID
-			return container.Info.ID
+			return container.Info.ID, nil
 		}
 	}
-	return containerName
+	return containerName, errors.New("No such container")
 }
 
 //Handle authentication on request and call next plugin handler.
@@ -92,20 +92,12 @@ func (nameScoping *DefaultNameScopingImpl) Handle(command utils.CommandEnum, clu
 
 		return nameScoping.nextHandler(command, cluster, w, r, swarmHandler)
 
-	//Find the container and replace the name with ID
-	case utils.CONTAINER_JSON:
-		if resourceName := mux.Vars(r)["name"]; resourceName != "" {
-			containerName := mux.Vars(r)["name"]
-			conatinerID := getContainerID(cluster, r, containerName)
-			mux.Vars(r)["name"] = conatinerID
-			r.URL.Path = strings.Replace(r.URL.Path, containerName, conatinerID, 1)
-			return nameScoping.nextHandler(command, cluster, w, r, swarmHandler)
-		} else {
-			log.Debug("What now?")
-		}
-	case utils.CONTAINER_START, utils.CONTAINER_STOP, utils.CONTAINER_RESTART, utils.CONTAINER_DELETE, utils.CONTAINER_WAIT, utils.CONTAINER_ARCHIVE, utils.CONTAINER_KILL, utils.CONTAINER_PAUSE, utils.CONTAINER_UNPAUSE, utils.CONTAINER_UPDATE, utils.CONTAINER_COPY, utils.CONTAINER_CHANGES, utils.CONTAINER_ATTACH, utils.CONTAINER_LOGS, utils.CONTAINER_TOP, utils.CONTAINER_STATS, utils.CONTAINER_EXEC:
+	case utils.CONTAINER_JSON, utils.CONTAINER_START, utils.CONTAINER_STOP, utils.CONTAINER_RESTART, utils.CONTAINER_DELETE, utils.CONTAINER_WAIT, utils.CONTAINER_ARCHIVE, utils.CONTAINER_KILL, utils.CONTAINER_PAUSE, utils.CONTAINER_UNPAUSE, utils.CONTAINER_UPDATE, utils.CONTAINER_COPY, utils.CONTAINER_CHANGES, utils.CONTAINER_ATTACH, utils.CONTAINER_LOGS, utils.CONTAINER_TOP, utils.CONTAINER_STATS, utils.CONTAINER_EXEC:
 		containerName := mux.Vars(r)["name"]
-		conatinerID := getContainerID(cluster, r, containerName)
+		conatinerID, err := getContainerID(cluster, r, containerName)
+		if err != nil {
+			return err
+		}
 		mux.Vars(r)["name"] = conatinerID
 		r.URL.Path = strings.Replace(r.URL.Path, containerName, conatinerID, 1)
 		return nameScoping.nextHandler(command, cluster, w, r, swarmHandler)
