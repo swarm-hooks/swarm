@@ -13,28 +13,37 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"fmt"
 )
 
-func ConnectDisconnect(cluster cluster.Cluster, r *http.Request) error {
+func ConnectDisconnect(cluster cluster.Cluster, r *http.Request) utils.ErrorInfo {
+	var errInfo utils.ErrorInfo
+	errInfo.Status = -1
 	if !utils.IsResourceOwner(cluster, r.Header.Get(headers.AuthZTenantIdHeaderName), mux.Vars(r)["networkid"], "network") {
-		return errors.New("Not authorized or no such network!")
+		errInfo.Err = errors.New("Not authorized or no such network!")
+		return errInfo
 	}
 	defer r.Body.Close()
 	if reqBody, _ := ioutil.ReadAll(r.Body); len(reqBody) > 0 {
 		var request apitypes.NetworkConnect
 		if err := json.NewDecoder(bytes.NewReader(reqBody)).Decode(&request); err != nil {
-			return err
+			errInfo.Err = err
+			return errInfo
 		}
 		if !utils.IsResourceOwner(cluster, r.Header.Get(headers.AuthZTenantIdHeaderName), request.Container, "container") {
-			return errors.New("Not Authorized or no such container!")
+			errInfo.Err = errors.New(fmt.Sprint("status ",http.StatusNotFound," HTTP error: No such container"))
+			errInfo.Status = http.StatusNotFound
+			return errInfo
 		}
 		var buf bytes.Buffer
 		if err := json.NewEncoder(&buf).Encode(request); err != nil {
-			return err
+			errInfo.Err = err
+			return errInfo
 		}
 		r, _ = utils.ModifyRequest(r, bytes.NewReader(buf.Bytes()), "", "")
 	}
-	return nil
+	errInfo.Err = nil
+	return errInfo
 }
 
 func NetworkAuthorization(cluster cluster.Cluster, r *http.Request, network string) error {

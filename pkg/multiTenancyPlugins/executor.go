@@ -28,10 +28,16 @@ func (*Executor) Handle(cluster cluster.Cluster, swarmHandler http.Handler) http
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		log.Debug(r)
-		err := startHandler(utils.ParseCommand(r), cluster, w, r, swarmHandler)
-		if err != nil {
-			log.Error(err)
-			http.Error(w, err.Error(), http.StatusBadRequest)
+		var errInfo utils.ErrorInfo
+		errInfo = startHandler(utils.ParseCommand(r), cluster, w, r, swarmHandler)
+		if errInfo.Err != nil {
+			log.Error(errInfo.Err)
+			if errInfo.Status == -1{
+				http.Error(w, errInfo.Err.Error(), http.StatusBadRequest)
+			}else {
+				http.Error(w, errInfo.Err.Error(), errInfo.Status)
+			}
+				
 		}
 	})
 }

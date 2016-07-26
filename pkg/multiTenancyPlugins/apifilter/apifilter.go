@@ -22,12 +22,15 @@ func NewPlugin(handler pluginAPI.Handler) pluginAPI.PluginAPI {
 
 type Apifilter struct{}
 
-func (apiFilterImpl *DefaultApiFilterImpl) Handle(command utils.CommandEnum, cluster cluster.Cluster, w http.ResponseWriter, r *http.Request, swarmHandler http.Handler) error {
+func (apiFilterImpl *DefaultApiFilterImpl) Handle(command utils.CommandEnum, cluster cluster.Cluster, w http.ResponseWriter, r *http.Request, swarmHandler http.Handler) utils.ErrorInfo {
 	log.Debug("Plugin apiFilter Got command: " + command)
+	var errInfo utils.ErrorInfo
+	errInfo.Status = -1
 	if supportedAPIsMap[command] {
 		return apiFilterImpl.nextHandler(command, cluster, w, r, swarmHandler)
 	} else {
-		return errors.New("Command Not Supported!")
+		errInfo.Err = errors.New("Command Not Supported!")
+		return errInfo
 	}
 
 }
