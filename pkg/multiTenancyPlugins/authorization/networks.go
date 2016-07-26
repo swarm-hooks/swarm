@@ -13,10 +13,10 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
-	"fmt"
+	//"fmt"
 )
 
-func ConnectDisconnect(cluster cluster.Cluster, r *http.Request, w http.ResponseWriter) error {
+func ConnectDisconnect(cluster cluster.Cluster, r *http.Request) error {
 	if !utils.IsResourceOwner(cluster, r.Header.Get(headers.AuthZTenantIdHeaderName), mux.Vars(r)["networkid"], "network") {
 		return errors.New("Not authorized or no such network!")
 	}
@@ -27,8 +27,7 @@ func ConnectDisconnect(cluster cluster.Cluster, r *http.Request, w http.Response
 			return err
 		}
 		if !utils.IsResourceOwner(cluster, r.Header.Get(headers.AuthZTenantIdHeaderName), request.Container, "container") {
-			http.Error(w, fmt.Sprintf("No such container "), http.StatusNotFound)
-			return errors.New(fmt.Sprint("status ",http.StatusNotFound," HTTP error: No such container"))
+			return errors.New("No such container ")
 		}
 		var buf bytes.Buffer
 		if err := json.NewEncoder(&buf).Encode(request); err != nil {

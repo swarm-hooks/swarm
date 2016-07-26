@@ -135,7 +135,11 @@ func (defaultauthZ *DefaultAuthZImpl) Handle(command utils.CommandEnum, cluster 
 		return defaultauthZ.nextHandler(command, cluster, w, r, swarmHandler)
 
 	case utils.NETWORK_CONNECT, utils.NETWORK_DISCONNECT:
-		if err := ConnectDisconnect(cluster, r, w); err != nil {
+		if err := ConnectDisconnect(cluster, r); err != nil {
+			if err.Error() == "No such container "{
+				http.Error(w, fmt.Sprintf("No such container "), http.StatusNotFound)
+				return errors.New(fmt.Sprint("status ",http.StatusNotFound," HTTP error: No such container"))
+			}
 			return err
 		}
 		return defaultauthZ.nextHandler(command, cluster, w, r, swarmHandler)
