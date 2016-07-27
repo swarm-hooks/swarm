@@ -3,6 +3,9 @@ package namescoping
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
+	"fmt"
+	log "github.com/Sirupsen/logrus"
 	apitypes "github.com/docker/engine-api/types"
 	"github.com/docker/swarm/cluster"
 	"github.com/docker/swarm/pkg/multiTenancyPlugins/headers"
@@ -23,7 +26,11 @@ func ConnectDisconnect(cluster cluster.Cluster, r *http.Request) error {
 			if err := json.NewDecoder(bytes.NewReader(reqBody)).Decode(&request); err != nil {
 				return err
 			}
-			conatinerID := getContainerID(cluster, r, request.Container)
+			conatinerID, err := getContainerID(cluster, r.Header.Get(headers.AuthZTenantIdHeaderName), request.Container)
+			if err != nil {
+				log.Error(err)
+				return errors.New(fmt.Sprint("No such container: ", request.Container))
+			}
 			request.Container = conatinerID
 			var buf bytes.Buffer
 			if err := json.NewEncoder(&buf).Encode(request); err != nil {
