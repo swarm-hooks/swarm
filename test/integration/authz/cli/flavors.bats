@@ -30,6 +30,7 @@ load cli_helpers
 	run docker -H $SWARM_HOST --config $DOCKER_CONFIG3 inspect -f '{{ .HostConfig.Memory }}' useDefault 
     [ "$status" -eq 0 ]
 	[[ "$output" == "$DEFAULTFLAVOR" ]]
+	run docker -H $SWARM_HOST --config $DOCKER_CONFIG3 rm -f useDefault
 	
 	run docker -H $SWARM_HOST --config $DOCKER_CONFIG1 create --name use64m -m 64m busybox top  
     [ "$status" -eq 0 ]
@@ -37,6 +38,7 @@ load cli_helpers
 	run docker -H $SWARM_HOST --config $DOCKER_CONFIG3 inspect -f '{{ .HostConfig.Memory }}' use64m 
     [ "$status" -eq 0 ]
 	[[ "$output" == "$DEFAULTFLAVOR" ]]
+	run docker -H $SWARM_HOST --config $DOCKER_CONFIG3 rm -f use64m
 	
 	run docker -H $SWARM_HOST --config $DOCKER_CONFIG1 create --name use128m -m 128m busybox top  
     [ "$status" -eq 0 ]
@@ -44,6 +46,8 @@ load cli_helpers
 	run docker -H $SWARM_HOST --config $DOCKER_CONFIG3 inspect -f '{{ .HostConfig.Memory }}' use128m 
     [ "$status" -eq 0 ]
 	[[ "$output" == "$MEDIUMFLAVOR" ]]
+	run docker -H $SWARM_HOST --config $DOCKER_CONFIG3 rm -f use128m
+
 	
 	run docker -H $SWARM_HOST --config $DOCKER_CONFIG1 create --name use256m -m 256m busybox top  
     [ "$status" -eq 0 ]
@@ -51,6 +55,7 @@ load cli_helpers
 	run docker -H $SWARM_HOST --config $DOCKER_CONFIG3 inspect -f '{{ .HostConfig.Memory }}' use256m 
     [ "$status" -eq 0 ]
 	[[ "$output" == "$LARGEFLAVOR" ]]
+	run docker -H $SWARM_HOST --config $DOCKER_CONFIG3 rm -f use256m
 	
 	run docker -H $SWARM_HOST --config $DOCKER_CONFIG1 create --name use100m -m 100m busybox top  
     [ "$status" -eq 0 ]
@@ -58,6 +63,8 @@ load cli_helpers
 	run docker -H $SWARM_HOST --config $DOCKER_CONFIG3 inspect -f '{{ .HostConfig.Memory }}' use100m 
     [ "$status" -eq 0 ]
 	[[ "$output" == "$DEFAULTFLAVOR" ]]
+	run docker -H $SWARM_HOST --config $DOCKER_CONFIG1 rm -f use100m  
+
 
 
 
