@@ -20,7 +20,7 @@ import (
 
 const NOTAUTHORIZED_ERROR = "No such container or the user is not authorized for this container: %s."
 const CONTAINER_NOT_OWNED_INFO = "container not owned by current tenant info."
-const CONTAINER_REFERENCE_NOT_FOR_CONTAINER_INFO = "container reference does not match this containter info."
+const CONTAINER_REFERENCE_NOT_FOR_CONTAINER_INFO = "container reference does not match this container info."
 
 //AuthenticationImpl - implementation of plugin API
 type DefaultNameScopingImpl struct {
@@ -32,28 +32,6 @@ func NewNameScoping(handler pluginAPI.Handler) pluginAPI.PluginAPI {
 		nextHandler: handler,
 	}
 	return nameScoping
-}
-
-func getContainerID(cluster cluster.Cluster, r *http.Request, containerName string) string {
-	tenantId := r.Header.Get(headers.AuthZTenantIdHeaderName)
-	for _, container := range cluster.Containers() {
-		if container.Info.ID == containerName {
-			//Match by Full Id
-			return container.Info.ID
-		} else {
-			for _, name := range container.Names {
-				if (containerName == strings.TrimPrefix(name, "/") || containerName == container.Labels[headers.OriginalNameLabel]) && container.Labels[headers.TenancyLabel] == tenantId {
-					//Match by Name
-					return container.Info.ID
-				}
-			}
-		}
-		if strings.HasPrefix(container.Info.ID, containerName) {
-			//Match by short ID
-			return container.Info.ID
-		}
-	}
-	return containerName
 }
 
 //Handle authentication on request and call next plugin handler.
@@ -94,7 +72,11 @@ func (nameScoping *DefaultNameScopingImpl) Handle(command utils.CommandEnum, clu
 
 	case utils.CONTAINER_JSON, utils.CONTAINER_START, utils.CONTAINER_STOP, utils.CONTAINER_RESTART, utils.CONTAINER_DELETE, utils.CONTAINER_WAIT, utils.CONTAINER_ARCHIVE, utils.CONTAINER_KILL, utils.CONTAINER_PAUSE, utils.CONTAINER_UNPAUSE, utils.CONTAINER_UPDATE, utils.CONTAINER_COPY, utils.CONTAINER_CHANGES, utils.CONTAINER_ATTACH, utils.CONTAINER_LOGS, utils.CONTAINER_TOP, utils.CONTAINER_STATS, utils.CONTAINER_EXEC:
 		containerName := mux.Vars(r)["name"]
-		conatinerID := getContainerID(cluster, r, containerName)
+		conatinerID, err := getContainerID(cluster, r.Header.Get(headers.AuthZTenantIdHeaderName), containerName)
+		if err != nil {
+			log.Error(err)
+			return errors.New(fmt.Sprint("No such container: ", containerName))
+		}
 		mux.Vars(r)["name"] = conatinerID
 		r.URL.Path = strings.Replace(r.URL.Path, containerName, conatinerID, 1)
 		return nameScoping.nextHandler(command, cluster, w, r, swarmHandler)
@@ -196,7 +178,7 @@ func getIDsFromContainerReferences(cluster cluster.Cluster, tenantId string, con
 			var containerId string
 			// look for containerReference found in volumes_from and links
 			for _, containerReference := range containerReferences {
-				if containerId, err = getContainerId(container, tenantId, containerReference); err == nil {
+				if containerId, err = getID(container, tenantId, containerReference); err == nil {
 					containerReferenceToIdMap[containerReference] = containerId
 					break
 				}
@@ -216,7 +198,17 @@ func getIDsFromContainerReferences(cluster cluster.Cluster, tenantId string, con
 	return containerReferenceToIdMap, nil
 }
 
-func getContainerId(container *cluster.Container, tenantId string, containerReference string) (string, error) {
+// Returns container full ID or error if not found.
+func getContainerID(cluster cluster.Cluster, tenantId string, containerReference string) (string, error) {
+	for _, container := range cluster.Containers() {
+		if containerID, _ := getID(container, tenantId, containerReference); containerID != "" {
+			return containerID, nil
+		}
+	}
+	return "", errors.New("Not Authorized or no such resource!")
+}
+
+func getID(container *cluster.Container, tenantId string, containerReference string) (string, error) {
 	if container.Labels[headers.TenancyLabel] != tenantId {
 		return "", errors.New(CONTAINER_NOT_OWNED_INFO)
 	}
@@ -228,7 +220,7 @@ func getContainerId(container *cluster.Container, tenantId string, containerRefe
 	} else {
 		// check for name
 		for _, name := range container.Names {
-			if containerReference == name {
+			if containerReference == strings.TrimPrefix(name, "/") {
 				return container.Info.ID, nil
 			}
 		}
