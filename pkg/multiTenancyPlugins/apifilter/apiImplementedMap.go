@@ -54,7 +54,7 @@ func initSupportedAPIsMap() {
 	supportedAPIsMap["imagedelete"] = true
 	supportedAPIsMap["imagesave"] = false
 	supportedAPIsMap[c.IMAGE_SEARCH] = true
-	supportedAPIsMap[c.IMAGE_JSON] = false //inspect image
+	supportedAPIsMap[c.IMAGE_JSON] = true //inspect image
 	supportedAPIsMap["imagetag"] = false
 	supportedAPIsMap[c.IMAGES_JSON] = true //listImages
 	//server
