@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"strings"
+	"fmt"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/docker/swarm/cluster"
@@ -60,13 +61,15 @@ func (defaultauthZ *DefaultAuthZImpl) Handle(command utils.CommandEnum, cluster 
 		//In case of container json - should record and clean - consider seperating..
 	case utils.CONTAINER_START, utils.CONTAINER_STOP, utils.CONTAINER_RESTART, utils.CONTAINER_DELETE, utils.CONTAINER_WAIT, utils.CONTAINER_ARCHIVE, utils.CONTAINER_KILL, utils.CONTAINER_PAUSE, utils.CONTAINER_UNPAUSE, utils.CONTAINER_UPDATE, utils.CONTAINER_COPY, utils.CONTAINER_CHANGES, utils.CONTAINER_ATTACH, utils.CONTAINER_LOGS, utils.CONTAINER_TOP, utils.CONTAINER_STATS, utils.CONTAINER_EXEC:
 		if !utils.IsResourceOwner(cluster, r.Header.Get(headers.AuthZTenantIdHeaderName), mux.Vars(r)["name"], "container") {
-			return errors.New("Not Authorized or no such resource!")
+			http.Error(w, fmt.Sprintf("No such container "), http.StatusNotFound)
+			return errors.New(fmt.Sprint("status ",http.StatusNotFound," HTTP error: No such container"))
 		}
 		return defaultauthZ.nextHandler(command, cluster, w, r, swarmHandler)
 
 	case utils.CONTAINER_JSON:
 		if !utils.IsResourceOwner(cluster, r.Header.Get(headers.AuthZTenantIdHeaderName), mux.Vars(r)["name"], "container") {
-			return errors.New("Not Authorized or no such resource!")
+			http.Error(w, fmt.Sprintf("No such container "), http.StatusNotFound)
+			return errors.New(fmt.Sprint("status ",http.StatusNotFound," HTTP error: No such container"))
 		}
 		rec := httptest.NewRecorder()
 		if err := defaultauthZ.nextHandler(command, cluster, rec, r, swarmHandler); err != nil {
@@ -133,11 +136,15 @@ func (defaultauthZ *DefaultAuthZImpl) Handle(command utils.CommandEnum, cluster 
 
 	case utils.NETWORK_CONNECT, utils.NETWORK_DISCONNECT:
 		if err := ConnectDisconnect(cluster, r); err != nil {
+			if err.Error() == "No such container "{
+				http.Error(w, fmt.Sprintf("No such container "), http.StatusNotFound)
+				return errors.New(fmt.Sprint("status ",http.StatusNotFound," HTTP error: No such container"))
+			}
 			return err
 		}
 		return defaultauthZ.nextHandler(command, cluster, w, r, swarmHandler)
 
-	case utils.INFO, utils.NETWORK_CREATE, utils.EVENTS, utils.IMAGES_JSON, utils.IMAGE_PULL, utils.IMAGE_SEARCH, utils.IMAGE_HISTORY:
+	case utils.INFO, utils.NETWORK_CREATE, utils.EVENTS, utils.IMAGES_JSON, utils.IMAGE_PULL, utils.IMAGE_SEARCH, utils.IMAGE_HISTORY, utils.IMAGE_JSON:
 		return defaultauthZ.nextHandler(command, cluster, w, r, swarmHandler)
 
 	case utils.EXEC_START, utils.EXEC_RESIZE, utils.EXEC_JSON:

@@ -13,6 +13,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	//"fmt"
 )
 
 func ConnectDisconnect(cluster cluster.Cluster, r *http.Request) error {
@@ -26,7 +27,7 @@ func ConnectDisconnect(cluster cluster.Cluster, r *http.Request) error {
 			return err
 		}
 		if !utils.IsResourceOwner(cluster, r.Header.Get(headers.AuthZTenantIdHeaderName), request.Container, "container") {
-			return errors.New("Not Authorized or no such container!")
+			return errors.New("No such container ")
 		}
 		var buf bytes.Buffer
 		if err := json.NewEncoder(&buf).Encode(request); err != nil {
