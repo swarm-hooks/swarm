@@ -1,0 +1,17 @@
+
+{
+  "default":{
+   "Memory": 64
+  },
+  "medium":{
+   "Memory": 128
+  },
+  "large":{
+   "Memory": 256
+  }
+
+}
+	
+
+
+
