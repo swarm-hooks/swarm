@@ -27,7 +27,7 @@ func ConnectDisconnect(cluster cluster.Cluster, r *http.Request) error {
 			if err := json.NewDecoder(bytes.NewReader(reqBody)).Decode(&request); err != nil {
 				return err
 			}
-			conatinerID, err := getContainerID(cluster, r.Header.Get(headers.AuthZTenantIdHeaderName), request.Container)
+			conatinerID, err := utils.GetContainerID(cluster, r.Header.Get(headers.AuthZTenantIdHeaderName), request.Container)
 			if err != nil {
 				log.Error(err)
 				return errors.New(fmt.Sprint("No such container: ", request.Container))

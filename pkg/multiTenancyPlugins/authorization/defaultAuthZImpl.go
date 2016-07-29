@@ -64,9 +64,9 @@ func (defaultauthZ *DefaultAuthZImpl) Handle(command utils.CommandEnum, cluster 
 		}
 		return defaultauthZ.nextHandler(command, cluster, w, r, swarmHandler)
 		log.Debug("Returned from Swarm")
-		//In case of container json - should record and clean - consider seperating..
+
 	case utils.CONTAINER_START, utils.CONTAINER_STOP, utils.CONTAINER_RESTART, utils.CONTAINER_DELETE, utils.CONTAINER_WAIT, utils.CONTAINER_ARCHIVE, utils.CONTAINER_KILL, utils.CONTAINER_PAUSE, utils.CONTAINER_UNPAUSE, utils.CONTAINER_UPDATE, utils.CONTAINER_COPY, utils.CONTAINER_CHANGES, utils.CONTAINER_ATTACH, utils.CONTAINER_LOGS, utils.CONTAINER_TOP, utils.CONTAINER_STATS, utils.CONTAINER_EXEC:
-		if !utils.IsResourceOwner(cluster, r.Header.Get(headers.AuthZTenantIdHeaderName), mux.Vars(r)["name"], "container") {
+		if !utils.IsOwnedByTenant(r.Header.Get(headers.AuthZTenantIdHeaderName), mux.Vars(r)["name"]) {
 			errInfo.Err = errors.New(fmt.Sprint("status ", http.StatusNotFound, " HTTP error: No such container"))
 			errInfo.Status = http.StatusNotFound
 			return errInfo
@@ -74,7 +74,7 @@ func (defaultauthZ *DefaultAuthZImpl) Handle(command utils.CommandEnum, cluster 
 		return defaultauthZ.nextHandler(command, cluster, w, r, swarmHandler)
 
 	case utils.CONTAINER_JSON:
-		if !utils.IsResourceOwner(cluster, r.Header.Get(headers.AuthZTenantIdHeaderName), mux.Vars(r)["name"], "container") {
+		if !utils.IsOwnedByTenant(r.Header.Get(headers.AuthZTenantIdHeaderName), mux.Vars(r)["name"]) {
 			errInfo.Err = errors.New(fmt.Sprint("status ", http.StatusNotFound, " HTTP error: No such container"))
 			errInfo.Status = http.StatusNotFound
 			return errInfo
