@@ -77,7 +77,7 @@ func (nameScoping *DefaultNameScopingImpl) Handle(command utils.CommandEnum, clu
 
 	case utils.CONTAINER_JSON, utils.CONTAINER_START, utils.CONTAINER_STOP, utils.CONTAINER_RESTART, utils.CONTAINER_DELETE, utils.CONTAINER_WAIT, utils.CONTAINER_ARCHIVE, utils.CONTAINER_KILL, utils.CONTAINER_PAUSE, utils.CONTAINER_UNPAUSE, utils.CONTAINER_UPDATE, utils.CONTAINER_COPY, utils.CONTAINER_CHANGES, utils.CONTAINER_ATTACH, utils.CONTAINER_LOGS, utils.CONTAINER_TOP, utils.CONTAINER_STATS, utils.CONTAINER_EXEC:
 		containerName := mux.Vars(r)["name"]
-		conatinerID, err := getContainerID(cluster, r.Header.Get(headers.AuthZTenantIdHeaderName), containerName)
+		conatinerID, err := utils.GetContainerID(cluster, r.Header.Get(headers.AuthZTenantIdHeaderName), containerName)
 		if err != nil {
 			log.Error(err)
 			errInfo.Err = errors.New(fmt.Sprint("status ", http.StatusNotFound, " HTTP error: No such resource"))
@@ -219,16 +219,6 @@ func getIDsFromContainerReferences(cluster cluster.Cluster, tenantId string, con
 	}
 
 	return containerReferenceToIdMap, nil
-}
-
-// Returns container full ID or error if not found.
-func getContainerID(cluster cluster.Cluster, tenantId string, containerReference string) (string, error) {
-	for _, container := range cluster.Containers() {
-		if containerID, _ := getID(container, tenantId, containerReference); containerID != "" {
-			return containerID, nil
-		}
-	}
-	return "", errors.New("Not Authorized or no such resource!")
 }
 
 func getID(container *cluster.Container, tenantId string, containerReference string) (string, error) {
