@@ -60,6 +60,7 @@ func (nameScoping *DefaultNameScopingImpl) Handle(command utils.CommandEnum, clu
 			log.Error(err)
 			return err
 		}
+
 		if len(reqBody) > 0 {
 			if err := json.NewEncoder(&buf).Encode(oldconfig); err != nil {
 				log.Error(err)
@@ -106,9 +107,7 @@ func (nameScoping *DefaultNameScopingImpl) Handle(command utils.CommandEnum, clu
 	return nil
 }
 
-func CheckContainerReferences(cluster cluster.Cluster, tenantId string, oldconfig *clusterParams.OldContainerConfig) error {
-	config := oldconfig.ContainerConfig
-	log.Debugf("CheckContainerReferences containerConfig: %+v", config)
+func CheckContainerReferences(cluster cluster.Cluster, tenantId string, config *clusterParams.OldContainerConfig) error {
 	// create arrays of container references to pass to getIDsFromContainerReferences
 
 	// create links array
