@@ -314,3 +314,8 @@ func FilterNetworks(r *http.Request, rec *httptest.ResponseRecorder) []byte {
 	}
 	return buf.Bytes()
 }
+
+type ErrorInfo struct {
+	Err    error
+	Status int
+}

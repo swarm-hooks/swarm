@@ -33,11 +33,14 @@ func NewQuota(handler pluginAPI.Handler) pluginAPI.PluginAPI {
 	return quotaPlugin
 }
 
-func (quotaImpl *DefaultQuotaImpl) Handle(command utils.CommandEnum, cluster cluster.Cluster, w http.ResponseWriter, r *http.Request, swarmHandler http.Handler) error {
+func (quotaImpl *DefaultQuotaImpl) Handle(command utils.CommandEnum, cluster cluster.Cluster, w http.ResponseWriter, r *http.Request, swarmHandler http.Handler) utils.ErrorInfo {
+	var errInfo utils.ErrorInfo
+	errInfo.Status = http.StatusBadRequest
 	if enforceQuota != "true" {
 		log.Debug("Quota NOT enforced!")
 		swarmHandler.ServeHTTP(w, r)
-		return nil
+		errInfo.Err = nil
+		return errInfo
 	}
 	log.Debug("Plugin Quota got command: " + command)
 	//initialize quota once
@@ -52,7 +55,8 @@ func (quotaImpl *DefaultQuotaImpl) Handle(command utils.CommandEnum, cluster clu
 		if reqBody, _ := ioutil.ReadAll(r.Body); len(reqBody) > 0 {
 			var oldconfig clusterParams.OldContainerConfig
 			if err := json.NewDecoder(bytes.NewReader(reqBody)).Decode(&oldconfig); err != nil {
-				return err
+				errInfo.Err = err
+				return errInfo
 			}
 
 			// make sure HostConfig fields are consolidated before creating container
@@ -65,7 +69,8 @@ func (quotaImpl *DefaultQuotaImpl) Handle(command utils.CommandEnum, cluster clu
 			err := quotaMgmt.CheckAndIncreaseQuota(tenant, memory)
 			if err != nil {
 				log.Error(err)
-				return err
+				errInfo.Err = err
+				return errInfo
 			}
 			r.Body = ioutil.NopCloser(bytes.NewBuffer(reqBody))
 			rec := httptest.NewRecorder()
@@ -81,7 +86,8 @@ func (quotaImpl *DefaultQuotaImpl) Handle(command utils.CommandEnum, cluster clu
 			err = quotaMgmt.HandleCreateResponse(rec.Code, rec.Body.Bytes(), tenant, memory) //checks that createContainer succeeded
 			if err != nil {
 				log.Error(err)
-				return err
+				errInfo.Err = err
+				return errInfo
 			}
 		}
 	case utils.CONTAINER_DELETE:
@@ -97,5 +103,6 @@ func (quotaImpl *DefaultQuotaImpl) Handle(command utils.CommandEnum, cluster clu
 	default:
 		swarmHandler.ServeHTTP(w, r)
 	}
-	return nil
+	errInfo.Err = nil
+	return errInfo
 }

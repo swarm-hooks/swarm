@@ -33,8 +33,10 @@ func NewPlugin(handler pluginAPI.Handler) pluginAPI.PluginAPI {
 
 var keystoneUrl string
 
-func (apiKeystoneImpl *DefaultApiFilterImpl) Handle(command utils.CommandEnum, cluster cluster.Cluster, w http.ResponseWriter, r *http.Request, swarmHandler http.Handler) error {
+func (apiKeystoneImpl *DefaultApiFilterImpl) Handle(command utils.CommandEnum, cluster cluster.Cluster, w http.ResponseWriter, r *http.Request, swarmHandler http.Handler) utils.ErrorInfo {
 	log.Debug("Plugin keystone got command: " + command)
+	var errInfo utils.ErrorInfo
+	errInfo.Status = http.StatusBadRequest
 	if os.Getenv("SWARM_AUTH_BACKEND") != "Keystone" {
 		return apiKeystoneImpl.nextHandler(command, cluster, w, r, swarmHandler)
 	}
@@ -51,12 +53,14 @@ func (apiKeystoneImpl *DefaultApiFilterImpl) Handle(command utils.CommandEnum, c
 	valid := queryKeystone(tenantIdToValidate, tokenToValidate)
 
 	if !valid {
-		return errors.New("Not Authorized!")
+		errInfo.Err = errors.New("Not Authorized!")
+		return errInfo
 	}
 
 	if isAdminTenant(tenantIdToValidate) {
 		swarmHandler.ServeHTTP(w, r)
-		return nil
+		errInfo.Err = nil
+		return errInfo
 	}
 	return apiKeystoneImpl.nextHandler(command, cluster, w, r, swarmHandler)
 
