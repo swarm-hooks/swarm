@@ -39,8 +39,8 @@ func (defaultauthZ *DefaultAuthZImpl) Handle(command utils.CommandEnum, cluster 
 	case utils.CONTAINER_CREATE:
 		defer r.Body.Close()
 		if reqBody, _ := ioutil.ReadAll(r.Body); len(reqBody) > 0 {
-			var oldconfig clusterParams.OldContainerConfig
-			if err := json.NewDecoder(bytes.NewReader(reqBody)).Decode(&oldconfig); err != nil {
+			var config clusterParams.ContainerConfig
+			if err := json.NewDecoder(bytes.NewReader(reqBody)).Decode(&config); err != nil {
 				errInfo.Err = err
 				return errInfo
 			}
@@ -50,13 +50,13 @@ func (defaultauthZ *DefaultAuthZImpl) Handle(command utils.CommandEnum, cluster 
 				return errInfo
 			}
 			// network authorization
-			if err := NetworkAuthorization(cluster, r, string(oldconfig.ContainerConfig.HostConfig.NetworkMode)); err != nil {
+			if err := NetworkAuthorization(cluster, r, string(config.HostConfig.NetworkMode)); err != nil {
 				errInfo.Err = err
 				return errInfo
 			}
-			oldconfig.ContainerConfig.Config.Labels[headers.TenancyLabel] = r.Header.Get(headers.AuthZTenantIdHeaderName)
+			config.Config.Labels[headers.TenancyLabel] = r.Header.Get(headers.AuthZTenantIdHeaderName)
 			var buf bytes.Buffer
-			if err := json.NewEncoder(&buf).Encode(oldconfig); err != nil {
+			if err := json.NewEncoder(&buf).Encode(config); err != nil {
 				errInfo.Err = err
 				return errInfo
 			}

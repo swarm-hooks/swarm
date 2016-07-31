@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	log "github.com/Sirupsen/logrus"
-	containertypes "github.com/docker/engine-api/types/container"
 	"github.com/docker/swarm/cluster"
 	clusterParams "github.com/docker/swarm/cluster"
 	"github.com/docker/swarm/pkg/multiTenancyPlugins/headers"
@@ -43,11 +42,11 @@ func (nameScoping *DefaultNameScopingImpl) Handle(command utils.CommandEnum, clu
 	case utils.CONTAINER_CREATE:
 		var newQuery string
 		var buf bytes.Buffer
-		var oldconfig clusterParams.OldContainerConfig
+		var config clusterParams.ContainerConfig
 		var reqBody []byte
 		defer r.Body.Close()
 		if reqBody, _ = ioutil.ReadAll(r.Body); len(reqBody) > 0 {
-			if err := json.NewDecoder(bytes.NewReader(reqBody)).Decode(&oldconfig); err != nil {
+			if err := json.NewDecoder(bytes.NewReader(reqBody)).Decode(&config); err != nil {
 				log.Error(err)
 				errInfo.Err = err
 				return errInfo
@@ -56,17 +55,16 @@ func (nameScoping *DefaultNameScopingImpl) Handle(command utils.CommandEnum, clu
 		if "" != r.URL.Query().Get("name") {
 			log.Debug("Postfixing name with tenantID...")
 			newQuery = strings.Replace(r.RequestURI, r.URL.Query().Get("name"), r.URL.Query().Get("name")+r.Header.Get(headers.AuthZTenantIdHeaderName), 1)
-			oldconfig.ContainerConfig.Config.Labels[headers.OriginalNameLabel] = r.URL.Query().Get("name")
+			config.Config.Labels[headers.OriginalNameLabel] = r.URL.Query().Get("name")
 		}
-		oldconfig.ContainerConfig.HostConfig.NetworkMode = containertypes.NetworkMode(getNetworkID(cluster, r, string(oldconfig.ContainerConfig.HostConfig.NetworkMode)))
-		if err := CheckContainerReferences(cluster, r.Header.Get(headers.AuthZTenantIdHeaderName), &oldconfig); err != nil {
+		if err := CheckContainerReferences(cluster, r.Header.Get(headers.AuthZTenantIdHeaderName), &config); err != nil {
 			log.Error(err)
 			errInfo.Err = err
 			return errInfo
 		}
 
 		if len(reqBody) > 0 {
-			if err := json.NewEncoder(&buf).Encode(oldconfig); err != nil {
+			if err := json.NewEncoder(&buf).Encode(config); err != nil {
 				log.Error(err)
 				errInfo.Err = err
 				return errInfo
@@ -117,7 +115,7 @@ func (nameScoping *DefaultNameScopingImpl) Handle(command utils.CommandEnum, clu
 	return errInfo
 }
 
-func CheckContainerReferences(cluster cluster.Cluster, tenantId string, config *clusterParams.OldContainerConfig) error {
+func CheckContainerReferences(cluster cluster.Cluster, tenantId string, config *clusterParams.ContainerConfig) error {
 	// create arrays of container references to pass to getIDsFromContainerReferences
 
 	// create links array
