@@ -4,12 +4,12 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
-	"fmt"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/docker/swarm/cluster"
@@ -31,28 +31,34 @@ func NewAuthorization(handler pluginAPI.Handler) pluginAPI.PluginAPI {
 	return authZ
 }
 
-func (defaultauthZ *DefaultAuthZImpl) Handle(command utils.CommandEnum, cluster cluster.Cluster, w http.ResponseWriter, r *http.Request, swarmHandler http.Handler) error {
+func (defaultauthZ *DefaultAuthZImpl) Handle(command utils.CommandEnum, cluster cluster.Cluster, w http.ResponseWriter, r *http.Request, swarmHandler http.Handler) utils.ErrorInfo {
 	log.Debug("Plugin AuthZ got command: " + command)
+	var errInfo utils.ErrorInfo
+	errInfo.Status = http.StatusBadRequest
 	switch command {
 	case utils.CONTAINER_CREATE:
 		defer r.Body.Close()
 		if reqBody, _ := ioutil.ReadAll(r.Body); len(reqBody) > 0 {
 			var oldconfig clusterParams.OldContainerConfig
 			if err := json.NewDecoder(bytes.NewReader(reqBody)).Decode(&oldconfig); err != nil {
-				return err
+				errInfo.Err = err
+				return errInfo
 			}
 			//Disallow a user to create the special labels we inject : headers.TenancyLabel
 			if strings.Contains(string(reqBody), headers.TenancyLabel) == true {
-				return errors.New("Error, special label " + headers.TenancyLabel + " not allowed!")
+				errInfo.Err = errors.New("Error, special label " + headers.TenancyLabel + " not allowed!")
+				return errInfo
 			}
 			// network authorization
 			if err := NetworkAuthorization(cluster, r, string(oldconfig.ContainerConfig.HostConfig.NetworkMode)); err != nil {
-				return err
+				errInfo.Err = err
+				return errInfo
 			}
 			oldconfig.ContainerConfig.Config.Labels[headers.TenancyLabel] = r.Header.Get(headers.AuthZTenantIdHeaderName)
 			var buf bytes.Buffer
 			if err := json.NewEncoder(&buf).Encode(oldconfig); err != nil {
-				return err
+				errInfo.Err = err
+				return errInfo
 			}
 			r, _ = utils.ModifyRequest(r, bytes.NewReader(buf.Bytes()), "", "")
 		}
@@ -61,19 +67,21 @@ func (defaultauthZ *DefaultAuthZImpl) Handle(command utils.CommandEnum, cluster 
 		//In case of container json - should record and clean - consider seperating..
 	case utils.CONTAINER_START, utils.CONTAINER_STOP, utils.CONTAINER_RESTART, utils.CONTAINER_DELETE, utils.CONTAINER_WAIT, utils.CONTAINER_ARCHIVE, utils.CONTAINER_KILL, utils.CONTAINER_PAUSE, utils.CONTAINER_UNPAUSE, utils.CONTAINER_UPDATE, utils.CONTAINER_COPY, utils.CONTAINER_CHANGES, utils.CONTAINER_ATTACH, utils.CONTAINER_LOGS, utils.CONTAINER_TOP, utils.CONTAINER_STATS, utils.CONTAINER_EXEC:
 		if !utils.IsResourceOwner(cluster, r.Header.Get(headers.AuthZTenantIdHeaderName), mux.Vars(r)["name"], "container") {
-			http.Error(w, fmt.Sprintf("No such container "), http.StatusNotFound)
-			return errors.New(fmt.Sprint("status ",http.StatusNotFound," HTTP error: No such container"))
+			errInfo.Err = errors.New(fmt.Sprint("status ", http.StatusNotFound, " HTTP error: No such container"))
+			errInfo.Status = http.StatusNotFound
+			return errInfo
 		}
 		return defaultauthZ.nextHandler(command, cluster, w, r, swarmHandler)
 
 	case utils.CONTAINER_JSON:
 		if !utils.IsResourceOwner(cluster, r.Header.Get(headers.AuthZTenantIdHeaderName), mux.Vars(r)["name"], "container") {
-			http.Error(w, fmt.Sprintf("No such container "), http.StatusNotFound)
-			return errors.New(fmt.Sprint("status ",http.StatusNotFound," HTTP error: No such container"))
+			errInfo.Err = errors.New(fmt.Sprint("status ", http.StatusNotFound, " HTTP error: No such container"))
+			errInfo.Status = http.StatusNotFound
+			return errInfo
 		}
 		rec := httptest.NewRecorder()
-		if err := defaultauthZ.nextHandler(command, cluster, rec, r, swarmHandler); err != nil {
-			return err
+		if errInfo := defaultauthZ.nextHandler(command, cluster, rec, r, swarmHandler); errInfo.Err != nil {
+			return errInfo
 		}
 		/*POST Swarm*/
 		w.WriteHeader(rec.Code)
@@ -104,8 +112,8 @@ func (defaultauthZ *DefaultAuthZImpl) Handle(command utils.CommandEnum, cluster 
 			log.Error(e1)
 		}
 		rec := httptest.NewRecorder()
-		if err := defaultauthZ.nextHandler(command, cluster, rec, newReq, swarmHandler); err != nil {
-			return err
+		if errInfo := defaultauthZ.nextHandler(command, cluster, rec, newReq, swarmHandler); errInfo.Err != nil {
+			return errInfo
 		}
 		//TODO - May decide to overrideSwarms handlers.getContainersJSON - this is Where to do it.
 		/*POST Swarm*/
@@ -118,8 +126,8 @@ func (defaultauthZ *DefaultAuthZImpl) Handle(command utils.CommandEnum, cluster 
 
 	case utils.NETWORKS_LIST:
 		rec := httptest.NewRecorder()
-		if err := defaultauthZ.nextHandler(command, cluster, rec, r, swarmHandler); err != nil {
-			return err
+		if errInfo := defaultauthZ.nextHandler(command, cluster, rec, r, swarmHandler); errInfo.Err != nil {
+			return errInfo
 		}
 		w.WriteHeader(rec.Code)
 		for k, v := range rec.Header() {
@@ -130,17 +138,14 @@ func (defaultauthZ *DefaultAuthZImpl) Handle(command utils.CommandEnum, cluster 
 
 	case utils.NETWORK_INSPECT, utils.NETWORK_DELETE:
 		if !utils.IsResourceOwner(cluster, r.Header.Get(headers.AuthZTenantIdHeaderName), mux.Vars(r)["networkid"], "network") {
-			return errors.New("Not authorized or no such network!")
+			errInfo.Err = errors.New("Not authorized or no such network!")
+			return errInfo
 		}
 		return defaultauthZ.nextHandler(command, cluster, w, r, swarmHandler)
 
 	case utils.NETWORK_CONNECT, utils.NETWORK_DISCONNECT:
-		if err := ConnectDisconnect(cluster, r); err != nil {
-			if err.Error() == "No such container "{
-				http.Error(w, fmt.Sprintf("No such container "), http.StatusNotFound)
-				return errors.New(fmt.Sprint("status ",http.StatusNotFound," HTTP error: No such container"))
-			}
-			return err
+		if errInfo := ConnectDisconnect(cluster, r); errInfo.Err != nil {
+			return errInfo
 		}
 		return defaultauthZ.nextHandler(command, cluster, w, r, swarmHandler)
 
@@ -149,15 +154,19 @@ func (defaultauthZ *DefaultAuthZImpl) Handle(command utils.CommandEnum, cluster 
 
 	case utils.EXEC_START, utils.EXEC_RESIZE, utils.EXEC_JSON:
 		if !utils.VerifyExecContainerTenant(cluster, r.Header.Get(headers.AuthZTenantIdHeaderName), r) {
-			return errors.New("Not Authorized!")
+			errInfo.Err = errors.New("Not Authorized!")
+			return errInfo
 		}
 		return defaultauthZ.nextHandler(command, cluster, w, r, swarmHandler)
 
 	//Always allow or not?
 	default:
 		if !utils.IsResourceOwner(cluster, r.Header.Get(headers.AuthZTenantIdHeaderName), mux.Vars(r)["name"], "container") {
-			return errors.New("Not Authorized or no such resource!")
+			errInfo.Err = errors.New(fmt.Sprint("status ", http.StatusNotFound, " HTTP error: No such resource"))
+			errInfo.Status = http.StatusNotFound
+			return errInfo
 		}
 	}
-	return nil
+	errInfo.Err = nil
+	return errInfo
 }

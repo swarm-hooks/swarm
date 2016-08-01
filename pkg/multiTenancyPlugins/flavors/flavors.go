@@ -72,7 +72,9 @@ func readFlavorFile() {
 	}
 	log.Debugf("Flavors %+v", flavors)
 }
-func (flavorsImpl *DefaultFlavorsImpl) Handle(command utils.CommandEnum, cluster cluster.Cluster, w http.ResponseWriter, r *http.Request, swarmHandler http.Handler) error {
+func (flavorsImpl *DefaultFlavorsImpl) Handle(command utils.CommandEnum, cluster cluster.Cluster, w http.ResponseWriter, r *http.Request, swarmHandler http.Handler) utils.ErrorInfo {
+	var errInfo utils.ErrorInfo
+	errInfo.Status = http.StatusBadRequest
 	if flavorsEnforced != "true" {
 		return flavorsImpl.nextHandler(command, cluster, w, r, swarmHandler)
 	}
@@ -86,7 +88,8 @@ func (flavorsImpl *DefaultFlavorsImpl) Handle(command utils.CommandEnum, cluster
 		var buf bytes.Buffer
 		var oldconfig clusterParams.OldContainerConfig
 		if err := json.NewDecoder(bytes.NewReader(reqBody)).Decode(&oldconfig); err != nil {
-			return err
+			errInfo.Err = err
+			return errInfo
 		}
 
 		// make sure HostConfig fields are consolidated before creating container
@@ -105,10 +108,12 @@ func (flavorsImpl *DefaultFlavorsImpl) Handle(command utils.CommandEnum, cluster
 		oldconfig.ContainerConfig.HostConfig.Memory = flavors[curKey].Memory
 
 		if err := json.NewEncoder(&buf).Encode(oldconfig); err != nil {
-			return err
+			errInfo.Err = err
+			return errInfo
 		}
 		r, _ = utils.ModifyRequest(r, bytes.NewReader(buf.Bytes()), "", "")
 		return flavorsImpl.nextHandler(command, cluster, w, r, swarmHandler)
 	}
-	return errors.New("Plugin flavors enforced but returning nil!")
+	errInfo.Err = errors.New("Plugin flavors enforced but returning nil!")
+	return errInfo
 }

@@ -35,8 +35,10 @@ func NewNameScoping(handler pluginAPI.Handler) pluginAPI.PluginAPI {
 }
 
 //Handle authentication on request and call next plugin handler.
-func (nameScoping *DefaultNameScopingImpl) Handle(command utils.CommandEnum, cluster cluster.Cluster, w http.ResponseWriter, r *http.Request, swarmHandler http.Handler) error {
+func (nameScoping *DefaultNameScopingImpl) Handle(command utils.CommandEnum, cluster cluster.Cluster, w http.ResponseWriter, r *http.Request, swarmHandler http.Handler) utils.ErrorInfo {
 	log.Debug("Plugin nameScoping Got command: " + command)
+	var errInfo utils.ErrorInfo
+	errInfo.Status = http.StatusBadRequest
 	switch command {
 	case utils.CONTAINER_CREATE:
 		var newQuery string
@@ -47,7 +49,8 @@ func (nameScoping *DefaultNameScopingImpl) Handle(command utils.CommandEnum, clu
 		if reqBody, _ = ioutil.ReadAll(r.Body); len(reqBody) > 0 {
 			if err := json.NewDecoder(bytes.NewReader(reqBody)).Decode(&oldconfig); err != nil {
 				log.Error(err)
-				return err
+				errInfo.Err = err
+				return errInfo
 			}
 		}
 		if "" != r.URL.Query().Get("name") {
@@ -58,13 +61,15 @@ func (nameScoping *DefaultNameScopingImpl) Handle(command utils.CommandEnum, clu
 		oldconfig.ContainerConfig.HostConfig.NetworkMode = containertypes.NetworkMode(getNetworkID(cluster, r, string(oldconfig.ContainerConfig.HostConfig.NetworkMode)))
 		if err := CheckContainerReferences(cluster, r.Header.Get(headers.AuthZTenantIdHeaderName), &oldconfig); err != nil {
 			log.Error(err)
-			return err
+			errInfo.Err = err
+			return errInfo
 		}
 
 		if len(reqBody) > 0 {
 			if err := json.NewEncoder(&buf).Encode(oldconfig); err != nil {
 				log.Error(err)
-				return err
+				errInfo.Err = err
+				return errInfo
 			}
 			r, _ = utils.ModifyRequest(r, bytes.NewReader(buf.Bytes()), newQuery, "")
 		}
@@ -76,7 +81,9 @@ func (nameScoping *DefaultNameScopingImpl) Handle(command utils.CommandEnum, clu
 		conatinerID, err := getContainerID(cluster, r.Header.Get(headers.AuthZTenantIdHeaderName), containerName)
 		if err != nil {
 			log.Error(err)
-			return errors.New(fmt.Sprint("No such container: ", containerName))
+			errInfo.Err = errors.New(fmt.Sprint("status ", http.StatusNotFound, " HTTP error: No such resource"))
+			errInfo.Status = http.StatusNotFound
+			return errInfo
 		}
 		mux.Vars(r)["name"] = conatinerID
 		r.URL.Path = strings.Replace(r.URL.Path, containerName, conatinerID, 1)
@@ -84,13 +91,15 @@ func (nameScoping *DefaultNameScopingImpl) Handle(command utils.CommandEnum, clu
 
 	case utils.NETWORK_CONNECT, utils.NETWORK_DISCONNECT:
 		if err := ConnectDisconnect(cluster, r); err != nil {
-			return err
+			errInfo.Err = err
+			return errInfo
 		}
 		return nameScoping.nextHandler(command, cluster, w, r, swarmHandler)
 
 	case utils.NETWORK_CREATE:
 		if err := CreateNetwork(cluster, r); err != nil {
-			return err
+			errInfo.Err = err
+			return errInfo
 		}
 		return nameScoping.nextHandler(command, cluster, w, r, swarmHandler)
 
@@ -104,7 +113,8 @@ func (nameScoping *DefaultNameScopingImpl) Handle(command utils.CommandEnum, clu
 	default:
 
 	}
-	return nil
+	errInfo.Err = nil
+	return errInfo
 }
 
 func CheckContainerReferences(cluster cluster.Cluster, tenantId string, config *clusterParams.OldContainerConfig) error {
