@@ -60,16 +60,15 @@ checkInvariant() {
  return 0
 }
 notAuthorized() {
-#   NOTAUTHORIZED="Error response from daemon: Not Authorized or no such resource!"
    NOTAUTHORIZED="Error response from daemon: No such container:"
    run docker -H $SWARM_HOST --config $1 attach $2	
    if !( [ "$status" -ne 0 ] && [[ "$output" == *"$NOTAUTHORIZED"* ]] ); then
        return 1
    fi
-#	run docker -H $SWARM_HOST --config $1 exec $2 ls
-#    if !( [ "$status" -ne 0 ] && [[ "$output" == *"$NOTAUTHORIZED"* ]] ); then
-#        return 2
-#    fi
+   run docker -H $SWARM_HOST --config $1 exec $2 ls
+   if !( [ "$status" -ne 0 ] && [[ "$output" == *"$NOTAUTHORIZED"* ]] ); then
+        return 2
+   fi
 #	run docker -H $SWARM_HOST --config $1 export $2
 #    if !([ "$status" -ne 0 ] && [[ "$output" == *"$NOTAUTHORIZED"* ]]); then
 #        return 3

@@ -162,9 +162,9 @@ load cli_helpers
     [ "$status" -eq 0 ]
 	loop1Config1Name=$output
 	loop1Config1Name=${loop1Config1Name#"/"}
-	#run docker -H $SWARM_HOST --config $DOCKER_CONFIG3 inspect $loop1Config1Name
-    #[ "$status" -eq 0 ]
-    #[ "$inspectConfig1" = "$output" ]
+	run docker -H $SWARM_HOST --config $DOCKER_CONFIG3 inspect $loop1Config1Name
+    [ "$status" -eq 0 ]
+    [ "$inspectConfig1" = "$output" ]
 
 
  
