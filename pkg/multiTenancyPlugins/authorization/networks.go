@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	log "github.com/Sirupsen/logrus"
 	apitypes "github.com/docker/engine-api/types"
 	"github.com/docker/swarm/cluster"
@@ -13,7 +14,6 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
-	"fmt"
 )
 
 func ConnectDisconnect(cluster cluster.Cluster, r *http.Request) utils.ErrorInfo {
