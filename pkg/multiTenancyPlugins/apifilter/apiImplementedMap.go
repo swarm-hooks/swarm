@@ -27,7 +27,8 @@ func initSupportedAPIsMap() {
 	supportedAPIsMap[c.EXEC_START] = true  //exec/{execid:.*}/start
 	supportedAPIsMap[c.EXEC_RESIZE] = true //exec/{execid:.*}/resize
 	supportedAPIsMap[c.EXEC_JSON] = true   //exec/{execid:.*}/json
-	supportedAPIsMap[c.CONTAINER_EXPORT] = false
+	supportedAPIsMap[c.CONTAINER_EXPORT] = true
+	supportedAPIsMap[c.CONTAINER_IMPORT] = true
 	supportedAPIsMap[c.CONTAINER_JSON] = true
 	supportedAPIsMap[c.CONTAINER_RESTART] = true
 	supportedAPIsMap[c.CONTAINER_KILL] = true
@@ -75,7 +76,7 @@ func initSupportedAPIsMap() {
 
 	//general
 	supportedAPIsMap[c.INFO] = true
-	supportedAPIsMap[c.VERSION] = false
+	supportedAPIsMap[c.VERSION] = true
 
 	//new
 	supportedAPIsMap["ping"] = false                  //_ping

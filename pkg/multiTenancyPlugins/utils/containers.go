@@ -54,7 +54,6 @@ func GetContainer(containerReference string, tenantID string, cluster cluster.Cl
 	return nil
 }
 
-
 func InitialMapping(cluster cluster.Cluster) {
 	log.Debug("Initial containers mapping.")
 	for _, container := range cluster.Containers() {
@@ -62,7 +61,6 @@ func InitialMapping(cluster cluster.Cluster) {
 		doMapping(container)
 	}
 }
-
 
 func CreateContainerMapping(returnCode int, body []byte, tenantID string, cluster cluster.Cluster) {
 	if returnCode != 201 {
@@ -80,7 +78,6 @@ func CreateContainerMapping(returnCode int, body []byte, tenantID string, cluste
 	go mapContainer(id, cluster)
 }
 
-
 func DeleteContainerMapping(returnCode int, containerID string, containerNames []string, tenantID string, originalName string) {
 	if returnCode >= 300 || returnCode < 200 {
 		return
@@ -89,12 +86,11 @@ func DeleteContainerMapping(returnCode int, containerID string, containerNames [
 	delete(FullIdToTenant, containerID)
 	delete(ContainerShortIds, string(containerID[0:12])) // delete short ID mapping
 	// delete names mapping
-	delete(ContainerNames, originalName + tenantID)
+	delete(ContainerNames, originalName+tenantID)
 	for _, name := range containerNames {
 		delete(ContainerNames, strings.TrimPrefix(name, "/"))
 	}
 }
-
 
 func IsOwnedByTenant(tenant string, containerID string) bool {
 	if container := ContainerFullIds[containerID]; container != nil {
@@ -106,7 +102,6 @@ func IsOwnedByTenant(tenant string, containerID string) bool {
 	return false
 }
 
-
 func mapContainer(containerID string, cluster cluster.Cluster) {
 	// Find container on the cluster
 	container := getContainerFromCluster(containerID, cluster)
@@ -117,7 +112,6 @@ func mapContainer(containerID string, cluster cluster.Cluster) {
 	doMapping(container)
 }
 
-
 func doMapping(container *cluster.Container) {
 	ContainerFullIds[container.Info.ID] = container
 	ContainerNames[container.Labels[headers.OriginalNameLabel]+container.Labels[headers.TenancyLabel]] = container
@@ -126,7 +120,6 @@ func doMapping(container *cluster.Container) {
 	}
 	ContainerShortIds[container.Info.ID[0:12]] = container
 }
-
 
 func getIdFromBody(body []byte) string {
 	var containerConfig apitypes.ContainerCreateResponse
@@ -137,7 +130,6 @@ func getIdFromBody(body []byte) string {
 	return containerConfig.ID
 }
 
-
 func getContainerFromCluster(containerID string, cluster cluster.Cluster) *cluster.Container {
 	for _, container := range cluster.Containers() {
 		if container.Info.ID == containerID {
@@ -146,7 +138,6 @@ func getContainerFromCluster(containerID string, cluster cluster.Cluster) *clust
 	}
 	return nil
 }
-
 
 func findOnCluster(cluster cluster.Cluster, containerReference string, tenantID string) *cluster.Container {
 	for _, container := range cluster.Containers() {

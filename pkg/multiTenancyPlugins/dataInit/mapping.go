@@ -19,9 +19,9 @@ type MappingImpl struct {
 func NewMapping(handler pluginAPI.Handler) pluginAPI.PluginAPI {
 	log.Debug("Initializing container maps")
 	utils.FullIdToTenant = make(map[string]string)
-	utils.ContainerFullIds =  make(map[string]*cluster.Container)
-	utils.ContainerShortIds =  make(map[string]*cluster.Container)
-	utils.ContainerNames =  make(map[string]*cluster.Container)
+	utils.ContainerFullIds = make(map[string]*cluster.Container)
+	utils.ContainerShortIds = make(map[string]*cluster.Container)
+	utils.ContainerNames = make(map[string]*cluster.Container)
 	containerMapping := &MappingImpl{
 		nextHandler: handler,
 	}
@@ -62,7 +62,7 @@ func (mapping *MappingImpl) Handle(command utils.CommandEnum, cluster cluster.Cl
 			containerNames = container.Names
 			tenantID = r.Header.Get(headers.AuthZTenantIdHeaderName)
 			originalName = container.Labels[headers.OriginalNameLabel]
-		}		
+		}
 		rec := httptest.NewRecorder()
 		if errInfo := mapping.nextHandler(command, cluster, rec, r, swarmHandler); errInfo.Err != nil {
 			return errInfo
@@ -73,7 +73,7 @@ func (mapping *MappingImpl) Handle(command utils.CommandEnum, cluster cluster.Cl
 		}
 		w.Write(rec.Body.Bytes())
 		utils.DeleteContainerMapping(rec.Code, containerID, containerNames, tenantID, originalName)
-		
+
 	default:
 		return mapping.nextHandler(command, cluster, w, r, swarmHandler)
 	}
