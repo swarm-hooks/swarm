@@ -13,6 +13,7 @@ import (
 	"github.com/gorilla/mux"
 	"io/ioutil"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 )
 
@@ -98,4 +99,20 @@ func getNetworkID(cluster cluster.Cluster, r *http.Request, networkId string) st
 		}
 	}
 	return networkId
+}
+
+func cleanUpNames(responseRecorder *httptest.ResponseRecorder, networkName string) []byte {
+	var networkResource apitypes.NetworkResource
+	if err := json.NewDecoder(bytes.NewReader(responseRecorder.Body.Bytes())).Decode(&networkResource); err != nil {
+		log.Error(err)
+		return nil
+	}
+	networkResource.Name = networkName
+	// TODO: change the names of the attached containers.
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(networkResource); err != nil {
+		log.Error(err)
+		return nil
+	}
+	return buf.Bytes()
 }
