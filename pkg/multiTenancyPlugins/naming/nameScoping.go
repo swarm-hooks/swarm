@@ -14,6 +14,7 @@ import (
 	"github.com/gorilla/mux"
 	"io/ioutil"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 )
 
@@ -101,9 +102,24 @@ func (nameScoping *DefaultNameScopingImpl) Handle(command utils.CommandEnum, clu
 		}
 		return nameScoping.nextHandler(command, cluster, w, r, swarmHandler)
 
-	case utils.NETWORK_INSPECT, utils.NETWORK_DELETE:
+	case utils.NETWORK_DELETE:
 		DeleteInspect(cluster, r)
 		return nameScoping.nextHandler(command, cluster, w, r, swarmHandler)
+
+	case utils.NETWORK_INSPECT:
+		networkName := mux.Vars(r)["networkid"]
+		DeleteInspect(cluster, r)
+		responseRecorder := httptest.NewRecorder()
+		if errInfo := nameScoping.nextHandler(command, cluster, responseRecorder, r, swarmHandler); errInfo.Err != nil {
+			return errInfo
+		}
+		// Show original names in the response
+		w.WriteHeader(responseRecorder.Code)
+		for k, v := range responseRecorder.Header() {
+			w.Header()[k] = v
+		}
+		newBody := cleanUpNames(responseRecorder, networkName)
+		w.Write(newBody)
 
 	case utils.PS, utils.JSON, utils.NETWORKS_LIST, utils.INFO, utils.EVENTS, utils.IMAGES_JSON, utils.EXEC_START, utils.EXEC_RESIZE, utils.EXEC_JSON, utils.IMAGE_PULL, utils.IMAGE_SEARCH, utils.IMAGE_HISTORY, utils.IMAGE_JSON:
 		return nameScoping.nextHandler(command, cluster, w, r, swarmHandler)
