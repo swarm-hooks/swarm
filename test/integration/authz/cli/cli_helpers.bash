@@ -60,25 +60,25 @@ checkInvariant() {
  return 0
 }
 notAuthorized() {
-   NOTAUTHORIZED="Error response from daemon: No such container:"
+   NOTAUTHORIZED="Error: No such container:"
+   NO_SUCH_RESOURCE="Error response from daemon: status 404 HTTP error: No such resource"
    run docker -H $SWARM_HOST --config $1 attach $2	
    if !( [ "$status" -ne 0 ] && [[ "$output" == *"$NOTAUTHORIZED"* ]] ); then
        return 1
    fi
    run docker -H $SWARM_HOST --config $1 exec $2 ls
-   if !( [ "$status" -ne 0 ] && [[ "$output" == *"$NOTAUTHORIZED"* ]] ); then
+   if !( [ "$status" -ne 0 ] ); then
         return 2
    fi
-#	run docker -H $SWARM_HOST --config $1 export $2
-#    if !([ "$status" -ne 0 ] && [[ "$output" == *"$NOTAUTHORIZED"* ]]); then
-#        return 3
-#    fi
-	run docker -H $SWARM_HOST --config $1 inspect $2
-    if !([ "$status" -ne 0 ] && [[ "$output" == *"$NOTAUTHORIZED"* ]]); then
+   run docker -H $SWARM_HOST --config $1 export $2
+   if !([ "$status" -ne 0 ]); then
+        return 3
+    fi
+    if !([ "$status" -ne 0 ]); then
         return 4
     fi
 	run docker -H $SWARM_HOST --config $1 kill $2
-    if !([ "$status" -ne 0 ] && [[ "$output" == *"$NOTAUTHORIZED"* ]]); then
+    if !([ "$status" -ne 0 ] ); then
         return 5
     fi
 	run docker -H $SWARM_HOST --config $1 logs $2
@@ -89,48 +89,48 @@ notAuthorized() {
     if !([ "$status" -ne 0 ] && [[ "$output" == *"$NOTAUTHORIZED"* ]]); then
         return 9
     fi
-#	run docker -H $SWARM_HOST --config $1 rename $2 "foo"
-#    if !([ "$status" -ne 0 ] && [[ "$output" == *"$NOTAUTHORIZED"* ]]); then
-#        return 10
-#    fi
+	run docker -H $SWARM_HOST --config $1 rename $2 "foo"
+    if !([ "$status" -ne 0 ]); then
+        return 10
+    fi
 	run docker -H $SWARM_HOST --config $1 restart $2
-    if !([ "$status" -ne 0 ] && [[ "$output" == *"$NOTAUTHORIZED"* ]]); then
+    if !([ "$status" -ne 0 ]); then
        return 11
     fi
 	run docker -H $SWARM_HOST --config $1 rm $2
-    if !([ "$status" -ne 0 ] && [[ "$output" == *"$NOTAUTHORIZED"* ]]); then
+    if !([ "$status" -ne 0 ]); then
         return 12
     fi
 	run docker -H $SWARM_HOST --config $1 start $2
-    if !([ "$status" -ne 0 ] && [[ "$output" == *"$NOTAUTHORIZED"* ]]); then
+    if !([ "$status" -ne 0 ]); then
         return 13
     fi
 	run docker -H $SWARM_HOST --config $1 stats $2
-    if !([ "$status" -ne 0 ] && [[ "$output" == *"$NOTAUTHORIZED"* ]]); then
+    if !([ "$status" -ne 0 ]); then
         return 14
     fi
     run docker -H $SWARM_HOST --config $1 top $2
-    if !([ "$status" -ne 0 ] && [[ "$output" == *"$NOTAUTHORIZED"* ]]); then
+    if !([ "$status" -ne 0 ]); then
         return 15
     fi
 	run docker -H $SWARM_HOST --config $1 unpause $2
-    if !([ "$status" -ne 0 ] && [[ "$output" == *"$NOTAUTHORIZED"* ]]); then
+    if !([ "$status" -ne 0 ]); then
         return 16
     fi
 	run docker -H $SWARM_HOST --config $1 update -m 4m $2
-    if !([ "$status" -ne 0 ] && [[ "$output" == *"$NOTAUTHORIZED"* ]]); then
+    if !([ "$status" -ne 0 ]); then
         return 17
     fi
     run docker -H $SWARM_HOST --config $1 wait $2
-    if !([ "$status" -ne 0 ] && [[ "$output" == *"$NOTAUTHORIZED"* ]]); then
+    if !([ "$status" -ne 0 ]); then
        return 18
     fi
 	run docker -H $SWARM_HOST --config $1 stop $2
-    if !([ "$status" -ne 0 ] && [[ "$output" == *"$NOTAUTHORIZED"* ]]); then
+    if !([ "$status" -ne 0 ]); then
         return 19
     fi
 	run docker -H $SWARM_HOST --config $1 pause $2
-    if !([ "$status" -ne 0 ] && [[ "$output" == *"$NOTAUTHORIZED"* ]]); then
+    if !([ "$status" -ne 0 ]); then
         return 20
     fi
 	return 0
