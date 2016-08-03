@@ -68,10 +68,10 @@ func initSupportedAPIsMap() {
 	supportedAPIsMap["networkcreate"] = true
 	supportedAPIsMap["networkdelete"] = true
 	//Volume
-	supportedAPIsMap["createVolume"] = false
-	supportedAPIsMap["inspectVolume"] = false
-	supportedAPIsMap["listVolume"] = false
-	supportedAPIsMap["removeVolume"] = false
+	supportedAPIsMap[c.VOLUME_CREATE] = true
+	supportedAPIsMap[c.VOLUME_INSPECT] = true
+	supportedAPIsMap[c.VOLUMES_LIST] = true
+	supportedAPIsMap[c.VOLUME_DELETE] = true
 
 	//general
 	supportedAPIsMap[c.INFO] = true
