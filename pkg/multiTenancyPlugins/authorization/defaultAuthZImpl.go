@@ -55,6 +55,9 @@ func (defaultauthZ *DefaultAuthZImpl) Handle(command utils.CommandEnum, cluster 
 				return errInfo
 			}
 			config.Config.Labels[headers.TenancyLabel] = r.Header.Get(headers.AuthZTenantIdHeaderName)
+			//if err := hostFSMountCheck(r.Header.Get(headers.AuthZTenantIdHeaderName), oldconfig.HostConfig.Binds); err != nil {
+			//	return err
+			//}
 			var buf bytes.Buffer
 			if err := json.NewEncoder(&buf).Encode(config); err != nil {
 				errInfo.Err = err
@@ -157,6 +160,29 @@ func (defaultauthZ *DefaultAuthZImpl) Handle(command utils.CommandEnum, cluster 
 			errInfo.Err = errors.New("Not Authorized!")
 			return errInfo
 		}
+		return defaultauthZ.nextHandler(command, cluster, w, r, swarmHandler)
+	case utils.VOLUME_DELETE:
+		if errInfo := volumeOwnershipCheck(r, "name"); errInfo.Err != nil {
+			return errInfo
+		}
+		return defaultauthZ.nextHandler(command, cluster, w, r, swarmHandler)
+	case utils.VOLUME_INSPECT:
+		if errInfo := volumeOwnershipCheck(r, "volumename"); errInfo.Err != nil {
+			return errInfo
+		}
+		return defaultauthZ.nextHandler(command, cluster, w, r, swarmHandler)
+	case utils.VOLUMES_LIST:
+		rec := httptest.NewRecorder()
+		if errInfo := defaultauthZ.nextHandler(command, cluster, rec, r, swarmHandler); errInfo.Err != nil {
+			return errInfo
+		}
+		w.WriteHeader(rec.Code)
+		for k, v := range rec.Header() {
+			w.Header()[k] = v
+		}
+		newBody := filterVolumes(r, rec)
+		w.Write(newBody)
+	case utils.VOLUME_CREATE:
 		return defaultauthZ.nextHandler(command, cluster, w, r, swarmHandler)
 
 	//Always allow or not?
