@@ -30,7 +30,7 @@ func ConnectDisconnect(cluster cluster.Cluster, r *http.Request) utils.ErrorInfo
 			errInfo.Err = err
 			return errInfo
 		}
-		if !utils.IsResourceOwner(cluster, r.Header.Get(headers.AuthZTenantIdHeaderName), request.Container, "container") {
+		if !utils.IsOwnedByTenant(r.Header.Get(headers.AuthZTenantIdHeaderName), request.Container) {
 			errInfo.Err = errors.New(fmt.Sprint("status ", http.StatusNotFound, " HTTP error: No such container"))
 			errInfo.Status = http.StatusNotFound
 			return errInfo
