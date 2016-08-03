@@ -16,7 +16,6 @@
 ######################################################################################
 
 load cli_helpers
-CMD_UNSUPPORTED="Error response from daemon: Command Not Supported!"
 
 @test "commit unsupported" {
     #skip
@@ -26,15 +25,46 @@ CMD_UNSUPPORTED="Error response from daemon: Command Not Supported!"
 	topConfig1Id=$output
 	run docker -H $SWARM_HOST --config $DOCKER_CONFIG1 commit $topConfig1Id test/busybox_top:v1
 	[ "$status" -ne 0 ]
-	[[ "$output" == *"$CMD_UNSUPPORTED"* ]]
+    [[ "$output" == *"Error"* ]]
+	run docker -H $SWARM_HOST --config $DOCKER_CONFIG1 rm -f top  
+    [ "$status" -eq 0 ]	
+}
+
+@test "export unsupported" {
+    #skip
+    run docker -H $SWARM_HOST --config $DOCKER_CONFIG1 create --name top busybox top  
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"Error"* ]]
+	topConfig1Id=$output
+	run docker -H $SWARM_HOST --config $DOCKER_CONFIG1 export -o tmp.tar top
+	[ "$status" -ne 0 ]
+    [[ "$output" == *"Error"* ]]
+	run rm tmp.tar
+	run docker -H $SWARM_HOST --config $DOCKER_CONFIG1 rm -f top  
+    [ "$status" -eq 0 ]	
+}	
+
+@test "rename unsupported" {
+    #skip
+    run docker -H $SWARM_HOST --config $DOCKER_CONFIG1 create --name top busybox top  
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"Error"* ]]
+	topConfig1Id=$output
+	run docker -H $SWARM_HOST --config $DOCKER_CONFIG1 rename top top2
+	[ "$status" -ne 0 ]
+    [[ "$output" == *"Error"* ]]
+	run docker -H $SWARM_HOST --config $DOCKER_CONFIG1 rm -f top  
+    [ "$status" -eq 0 ]	
+
 	
 }
+
 
 @test "login unsupported" {
     #skip
 	run docker -H $SWARM_HOST --config $DOCKER_CONFIG1 login -e user@gmail.com -u user -p secret server
 	[ "$status" -ne 0 ]
-	[[ "$output" == *"$CMD_UNSUPPORTED"* ]]
+    [[ "$output" == *"Error"* ]]
 	
 }
 
@@ -42,7 +72,7 @@ CMD_UNSUPPORTED="Error response from daemon: Command Not Supported!"
     skip "Requires export SWARM_APIFILTER_FILE=./test/integration/authz/data/apitfilter.json"
 	run docker -H $SWARM_HOST --config $DOCKER_CONFIG1 info
 	[ "$status" -ne 0 ]
-	[[ "$output" == *"$CMD_UNSUPPORTED"* ]]
+    [[ "$output" == *"Error"* ]]
 	
 }
 
