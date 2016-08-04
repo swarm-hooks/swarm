@@ -68,7 +68,7 @@ func (defaultauthZ *DefaultAuthZImpl) Handle(command utils.CommandEnum, cluster 
 		return defaultauthZ.nextHandler(command, cluster, w, r, swarmHandler)
 		log.Debug("Returned from Swarm")
 
-	case utils.CONTAINER_START, utils.CONTAINER_STOP, utils.CONTAINER_RESTART, utils.CONTAINER_DELETE, utils.CONTAINER_WAIT, utils.CONTAINER_ARCHIVE, utils.CONTAINER_KILL, utils.CONTAINER_PAUSE, utils.CONTAINER_UNPAUSE, utils.CONTAINER_UPDATE, utils.CONTAINER_COPY, utils.CONTAINER_CHANGES, utils.CONTAINER_ATTACH, utils.CONTAINER_LOGS, utils.CONTAINER_TOP, utils.CONTAINER_STATS, utils.CONTAINER_EXEC:
+	case utils.CONTAINER_START, utils.CONTAINER_STOP, utils.CONTAINER_RESTART, utils.CONTAINER_DELETE, utils.CONTAINER_WAIT, utils.CONTAINER_ARCHIVE, utils.CONTAINER_KILL, utils.CONTAINER_PAUSE, utils.CONTAINER_UNPAUSE, utils.CONTAINER_UPDATE, utils.CONTAINER_COPY, utils.CONTAINER_CHANGES, utils.CONTAINER_ATTACH, utils.CONTAINER_LOGS, utils.CONTAINER_TOP, utils.CONTAINER_STATS, utils.CONTAINER_EXEC, utils.CONTAINER_EXPORT, utils.CONTAINER_IMPORT:
 		if !utils.IsOwnedByTenant(r.Header.Get(headers.AuthZTenantIdHeaderName), mux.Vars(r)["name"]) {
 			errInfo.Err = errors.New(fmt.Sprint("status ", http.StatusNotFound, " HTTP error: No such container"))
 			errInfo.Status = http.StatusNotFound
@@ -152,7 +152,7 @@ func (defaultauthZ *DefaultAuthZImpl) Handle(command utils.CommandEnum, cluster 
 		}
 		return defaultauthZ.nextHandler(command, cluster, w, r, swarmHandler)
 
-	case utils.INFO, utils.NETWORK_CREATE, utils.EVENTS, utils.IMAGES_JSON, utils.IMAGE_PULL, utils.IMAGE_SEARCH, utils.IMAGE_HISTORY, utils.IMAGE_JSON:
+	case utils.INFO, utils.NETWORK_CREATE, utils.EVENTS, utils.IMAGES_JSON, utils.IMAGE_PULL, utils.IMAGE_SEARCH, utils.IMAGE_HISTORY, utils.IMAGE_JSON, utils.VERSION:
 		return defaultauthZ.nextHandler(command, cluster, w, r, swarmHandler)
 
 	case utils.EXEC_START, utils.EXEC_RESIZE, utils.EXEC_JSON:
