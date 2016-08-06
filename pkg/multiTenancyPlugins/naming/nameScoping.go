@@ -59,6 +59,8 @@ func (nameScoping *DefaultNameScopingImpl) Handle(command utils.CommandEnum, clu
 			newQuery = strings.Replace(r.RequestURI, r.URL.Query().Get("name"), r.URL.Query().Get("name")+r.Header.Get(headers.AuthZTenantIdHeaderName), 1)
 			config.Config.Labels[headers.OriginalNameLabel] = r.URL.Query().Get("name")
 		}
+		// Replace network reference with network ID, force Network-scoped alias for DNS use.
+		config = handleNetworkParameters(cluster, r, config)
 		if err := CheckContainerReferences(cluster, r.Header.Get(headers.AuthZTenantIdHeaderName), &config); err != nil {
 			log.Error(err)
 			errInfo.Err = err
