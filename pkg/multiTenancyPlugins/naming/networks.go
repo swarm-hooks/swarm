@@ -55,13 +55,12 @@ func DeleteInspect(cluster cluster.Cluster, r *http.Request) {
 
 func CreateNetwork(cluster cluster.Cluster, r *http.Request) error {
 	defer r.Body.Close()
-	// prefix network name with tenant name.
 	if reqBody, _ := ioutil.ReadAll(r.Body); len(reqBody) > 0 {
 		var request apitypes.NetworkCreateRequest
 		if err := json.NewDecoder(bytes.NewReader(reqBody)).Decode(&request); err != nil {
 			return err
 		}
-		request.Name = r.Header.Get(headers.AuthZTenantIdHeaderName) + request.Name
+		request.Name = utils.ConstructNetworkPrefix(r.Header.Get(headers.AuthZTenantIdHeaderName)) + request.Name
 		var buf bytes.Buffer
 		if err := json.NewEncoder(&buf).Encode(request); err != nil {
 			return err
@@ -116,24 +115,23 @@ func setNetworkFullId(cluster cluster.Cluster, r *http.Request, netName string) 
 /*
    Return network full ID if network exists.
 */
-func getNetworkID(cluster cluster.Cluster, r *http.Request, networkId string) string {
-	tenantId := r.Header.Get(headers.AuthZTenantIdHeaderName)
+func getNetworkID(cluster cluster.Cluster, r *http.Request, networkReference string) string {
 	for _, network := range cluster.Networks() {
-		if network.ID == networkId {
+		if network.ID == networkReference {
 			//Match by Full ID.
 			return network.ID
 		} else {
-			if network.Name == tenantId+networkId {
+			if network.Name == utils.ConstructNetworkPrefix(r.Header.Get(headers.AuthZTenantIdHeaderName))+networkReference {
 				//Match by name. Replace by full ID.
 				return network.ID
 			}
 		}
-		if strings.HasPrefix(network.ID, networkId) {
+		if strings.HasPrefix(network.ID, networkReference) {
 			//Match by short id. Replace by full ID.
 			return network.ID
 		}
 	}
-	return networkId
+	return networkReference
 }
 
 func cleanUpNames(responseRecorder *httptest.ResponseRecorder, networkName string) []byte {

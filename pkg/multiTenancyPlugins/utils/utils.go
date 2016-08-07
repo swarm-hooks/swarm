@@ -50,19 +50,19 @@ func ModifyRequest(r *http.Request, body io.Reader, urlStr string, containerID s
 }
 
 //Assumes ful ID was injected
-func IsResourceOwner(cluster cluster.Cluster, tenantName string, resourceId string, resourceType string) bool {
+func IsResourceOwner(cluster cluster.Cluster, tenantID string, resourceId string, resourceType string) bool {
 	switch resourceType {
 	case "container":
 		for _, container := range cluster.Containers() {
 			if container.Info.ID == resourceId {
-				return container.Labels[headers.TenancyLabel] == tenantName
+				return container.Labels[headers.TenancyLabel] == tenantID
 			}
 		}
 		return false
 	case "network":
 		for _, network := range cluster.Networks() {
 			if network.ID == resourceId {
-				return strings.HasPrefix(network.Name, tenantName)
+				return strings.HasPrefix(network.Name, ConstructNetworkPrefix(tenantID))
 			}
 		}
 		return false
@@ -326,12 +326,12 @@ func FilterNetworks(r *http.Request, rec *httptest.ResponseRecorder) []byte {
 		return nil
 	}
 	var candidates cluster.Networks
-	tenantName := r.Header.Get(headers.AuthZTenantIdHeaderName)
+	namePrefix := ConstructNetworkPrefix(r.Header.Get(headers.AuthZTenantIdHeaderName))
 	for _, network := range networks {
 		fullName := strings.SplitN(network.Name, "/", 2)
 		name := fullName[len(fullName)-1]
-		if strings.HasPrefix(name, tenantName) {
-			network.Name = strings.TrimPrefix(name, tenantName)
+		if strings.HasPrefix(name, namePrefix) {
+			network.Name = strings.TrimPrefix(name, namePrefix)
 			candidates = append(candidates, network)
 		}
 	}
@@ -341,6 +341,11 @@ func FilterNetworks(r *http.Request, rec *httptest.ResponseRecorder) []byte {
 		return nil
 	}
 	return buf.Bytes()
+}
+
+func ConstructNetworkPrefix(tenantID string) string {
+	// Network name prefix pattern: "s" + $(lowercase tenantID) + "-"
+	return "s" + strings.ToLower(tenantID) + "-"
 }
 
 type ErrorInfo struct {
