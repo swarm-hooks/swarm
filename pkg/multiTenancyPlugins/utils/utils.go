@@ -300,13 +300,10 @@ func commandParser(r *http.Request) string {
 			strings.Contains(r.RequestURI, "/volumes?") {
 			return "volumeslist"
 		}
-		if len(volumesParams) == 4 && volumesParams[3] != "" {
+		if len(volumesParams) == 4 {
 			if volumesParams[3] == "create" {
 				return "volumecreate"
 			}
-			return "volumeinspect"
-		} else {
-			log.Debugf("I am here", volumesParams)
 			return "volumeinspect"
 		}
 
