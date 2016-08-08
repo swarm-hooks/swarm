@@ -7,6 +7,8 @@ import (
 	"fmt"
 	log "github.com/Sirupsen/logrus"
 	apitypes "github.com/docker/engine-api/types"
+	"github.com/docker/engine-api/types/container"
+	"github.com/docker/engine-api/types/network"
 	"github.com/docker/swarm/cluster"
 	"github.com/docker/swarm/pkg/multiTenancyPlugins/headers"
 	"github.com/docker/swarm/pkg/multiTenancyPlugins/utils"
@@ -67,6 +69,39 @@ func CreateNetwork(cluster cluster.Cluster, r *http.Request) error {
 		r, _ = utils.ModifyRequest(r, bytes.NewReader(buf.Bytes()), "", "")
 	}
 	return nil
+}
+
+/*
+   Add container name as Network-scoped alias for DNS use.
+   Replace network reference with network ID.
+*/
+func handleNetworkParameters(cluster cluster.Cluster, r *http.Request, config cluster.ContainerConfig) cluster.ContainerConfig {
+	networkName := config.HostConfig.NetworkMode
+	// Allow Docker default networks.
+	if networkName == "default" || networkName == "bridge" || networkName == "host" || networkName == "none" || networkName == "" {
+		return config
+	}
+	var networkEndpoint network.EndpointSettings
+	containerName := r.URL.Query().Get("name")
+	networkID := container.NetworkMode(getNetworkID(cluster, r, string(networkName)))
+	if endpoint := config.NetworkingConfig.EndpointsConfig[string(networkName)]; endpoint != nil {
+		// Append to existing Network-scoped alias.
+		if containerName != "" {
+			endpoint.Aliases = append(endpoint.Aliases, containerName)
+		}
+		// Replace with network ID and remove old entry.
+		config.NetworkingConfig.EndpointsConfig[string(networkID)] = endpoint
+		delete(config.NetworkingConfig.EndpointsConfig, string(networkName))
+		config.HostConfig.NetworkMode = networkID
+	} else {
+		config.HostConfig.NetworkMode = networkID
+		if containerName == "" {
+			return config
+		}
+		networkEndpoint.Aliases = []string{containerName}
+		config.NetworkingConfig.EndpointsConfig[string(networkID)] = &networkEndpoint
+	}
+	return config
 }
 
 /*

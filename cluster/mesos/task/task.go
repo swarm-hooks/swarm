@@ -135,6 +135,12 @@ func (t *Task) Build(slaveID string, offers map[string]*mesosproto.Offer) {
 		if networkMode != "bridge" && networkMode != "" && networkMode != "default" {
 			t.Container.Docker.Parameters = append(t.Container.Docker.Parameters, &mesosproto.Parameter{Key: proto.String("net"), Value: proto.String(networkMode)})
 		}
+		// Handle network aliases
+		if endpoint := t.config.NetworkingConfig.EndpointsConfig[networkMode]; endpoint != nil {
+			for _, alias := range endpoint.Aliases {
+				t.Container.Docker.Parameters = append(t.Container.Docker.Parameters, &mesosproto.Parameter{Key: proto.String("net-alias"), Value: proto.String(alias)})
+			}
+		}
 	}
 
 	if cpus := t.config.HostConfig.CPUShares; cpus > 0 {
