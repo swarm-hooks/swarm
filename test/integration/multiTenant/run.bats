@@ -134,9 +134,6 @@ function teardown() {
 }
 
 @test "docker run --ip" {
-	# docker run --net is not supported. skip
-	skip
-
 	# docker run --ip is introduced in docker 1.10, skip older version without --ip
 	# look for --ip6 because --ip will match --ipc
 	run docker run --help
@@ -155,9 +152,6 @@ function teardown() {
 }
 
 @test "docker run --net-alias" {
-	# docker run --net is not supported. skip
-	skip
-
 	# docker run --net-alias is introduced in docker 1.10, skip older version without --net-alias
 	run docker run --help
 	if [[ "${output}" != *"--net-alias"* ]]; then
