@@ -122,6 +122,7 @@ const (
 
 	CONTAINER_ARCHIVE CommandEnum = "containerarchive"
 	CONTAINER_EXPORT  CommandEnum = "containerexport"
+	CONTAINER_IMPORT  CommandEnum = "containerimport"
 	CONTAINER_CHANGES CommandEnum = "containerchanges"
 	CONTAINER_JSON    CommandEnum = "containerjson"
 	CONTAINER_TOP     CommandEnum = "containertop"
@@ -185,6 +186,7 @@ func ParseCommand(r *http.Request) CommandEnum {
 		invMapmap["containersjson"] = JSON
 		invMapmap["containerarchive"] = CONTAINER_ARCHIVE
 		invMapmap["containerexport"] = CONTAINER_EXPORT
+		invMapmap["containerimport"] = CONTAINER_IMPORT
 		invMapmap["containerchanges"] = CONTAINER_CHANGES
 		invMapmap["containerjson"] = CONTAINER_JSON
 		invMapmap["containertop"] = CONTAINER_TOP
