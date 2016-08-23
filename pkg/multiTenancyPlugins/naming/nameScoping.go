@@ -176,6 +176,15 @@ func (nameScoping *DefaultNameScopingImpl) Handle(command utils.CommandEnum, clu
 func CheckContainerReferences(cluster cluster.Cluster, tenantId string, config *clusterParams.ContainerConfig) error {
 	// create arrays of container references to pass to getIDsFromContainerReferences
 
+	// create volumes-from array
+	volumesFromRef := make([]string, len(config.HostConfig.VolumesFrom))
+	for i, volume_from := range config.HostConfig.VolumesFrom {
+		// link in form [container reference]:[alias]
+		// : and alias are optional
+		containerRef_mode := strings.SplitN(volume_from, ":", 2)
+		volumesFromRef[i] = strings.TrimSpace(containerRef_mode[0])
+	}
+
 	// create links array
 	linkContainerRefs := make([]string, len(config.HostConfig.Links))
 	for i, link := range config.HostConfig.Links {
@@ -188,15 +197,21 @@ func CheckContainerReferences(cluster cluster.Cluster, tenantId string, config *
 	var err error
 	var containerReferenceToIdMap map[string]string
 	containerRefs := make([]string, 0)
-	containerRefs = append(containerRefs, config.HostConfig.VolumesFrom...)
+	containerRefs = append(containerRefs, volumesFromRef...)
 	containerRefs = append(containerRefs, linkContainerRefs...)
 	if containerReferenceToIdMap, err = getIDsFromContainerReferences(cluster, tenantId, containerRefs); err != nil {
+		log.Debugf("CheckContainerReferences err: %+v", err)
 		return err
 	}
 	// ******************update containerConfig******************
 	// update VolumesFrom
-	for i, k := range config.HostConfig.VolumesFrom {
-		config.HostConfig.VolumesFrom[i] = containerReferenceToIdMap[k]
+	for i, volume_from := range config.HostConfig.VolumesFrom {
+		containerRef_mode := strings.SplitN(volume_from, ":", 2)
+		if len(containerRef_mode) > 1 {
+			config.HostConfig.VolumesFrom[i] = containerReferenceToIdMap[containerRef_mode[0]] + ":" + containerRef_mode[1]
+		} else {
+			config.HostConfig.VolumesFrom[i] = containerReferenceToIdMap[containerRef_mode[0]]
+		}
 	}
 
 	// update links
@@ -237,7 +252,11 @@ func getIDsFromContainerReferences(cluster cluster.Cluster, tenantId string, con
 	}
 	// loop through all the containers to find the containerIds that at associated with the container references.
 	// eligible containers must belong to the tenant
+	foundCntDown := len(containerReferences)
+Loop:
 	for _, container := range cluster.Containers() {
+		log.Debugf("getIDsFromContainerReferences check container: %+v", container)
+
 		if container.Labels[headers.TenancyLabel] == tenantId {
 			var err error
 			var containerId string
@@ -245,7 +264,10 @@ func getIDsFromContainerReferences(cluster cluster.Cluster, tenantId string, con
 			for _, containerReference := range containerReferences {
 				if containerId, err = getID(container, tenantId, containerReference); err == nil {
 					containerReferenceToIdMap[containerReference] = containerId
-					break
+					foundCntDown--
+					if foundCntDown == 0 {
+						break Loop
+					}
 				}
 			}
 
