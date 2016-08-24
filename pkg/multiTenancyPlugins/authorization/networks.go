@@ -20,7 +20,8 @@ func ConnectDisconnect(cluster cluster.Cluster, r *http.Request) utils.ErrorInfo
 	var errInfo utils.ErrorInfo
 	errInfo.Status = http.StatusBadRequest
 	if !utils.IsResourceOwner(cluster, r.Header.Get(headers.AuthZTenantIdHeaderName), mux.Vars(r)["networkid"], "network") {
-		errInfo.Err = errors.New("Not authorized or no such network!")
+		errInfo.Err = errors.New(fmt.Sprintf("No such network: %s", mux.Vars(r)["networkid"]))
+		errInfo.Status = http.StatusNotFound
 		return errInfo
 	}
 	defer r.Body.Close()
@@ -57,7 +58,7 @@ func NetworkAuthorization(cluster cluster.Cluster, r *http.Request, network stri
 		return nil
 	}
 	if !utils.IsResourceOwner(cluster, r.Header.Get(headers.AuthZTenantIdHeaderName), network, "network") {
-		return errors.New("Not authorized or no such network!")
+		return errors.New(fmt.Sprintf("No such network: %s", mux.Vars(r)["networkid"]))
 	}
 	return nil
 }
