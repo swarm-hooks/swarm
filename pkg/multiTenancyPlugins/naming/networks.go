@@ -94,7 +94,7 @@ func handleNetworkParameters(cluster cluster.Cluster, r *http.Request, config cl
 		config.HostConfig.NetworkMode = networkID
 	} else {
 		config.HostConfig.NetworkMode = networkID
-		if containerName == "" {
+		if containerName == "" || config.NetworkingConfig.EndpointsConfig == nil {
 			return config
 		}
 		networkEndpoint.Aliases = []string{containerName}
