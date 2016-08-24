@@ -35,6 +35,11 @@ func ConnectDisconnect(cluster cluster.Cluster, r *http.Request) error {
 				return errors.New(fmt.Sprint("No such container: ", request.Container))
 			}
 			request.Container = conatinerID
+			// set container name as alias for DNS usage.
+			if request.EndpointConfig != nil {
+				container := utils.GetContainer(request.Container, r.Header.Get(headers.AuthZTenantIdHeaderName), cluster)			
+				request.EndpointConfig.Aliases = append(request.EndpointConfig.Aliases, container.Labels[headers.OriginalNameLabel])
+			}			
 			var buf bytes.Buffer
 			if err := json.NewEncoder(&buf).Encode(request); err != nil {
 				return err
