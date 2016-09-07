@@ -35,6 +35,12 @@ func ConnectDisconnect(cluster cluster.Cluster, r *http.Request) error {
 				return errors.New(fmt.Sprint("No such container: ", request.Container))
 			}
 			request.Container = conatinerID
+			// set container name as alias for DNS usage.
+			if request.EndpointConfig != nil {
+				if container := utils.GetContainer(request.Container, r.Header.Get(headers.AuthZTenantIdHeaderName), cluster); container != nil {
+					request.EndpointConfig.Aliases = append(request.EndpointConfig.Aliases, container.Labels[headers.OriginalNameLabel])
+				}
+			}
 			var buf bytes.Buffer
 			if err := json.NewEncoder(&buf).Encode(request); err != nil {
 				return err
@@ -94,7 +100,7 @@ func handleNetworkParameters(cluster cluster.Cluster, r *http.Request, config cl
 		config.HostConfig.NetworkMode = networkID
 	} else {
 		config.HostConfig.NetworkMode = networkID
-		if containerName == "" {
+		if containerName == "" || config.NetworkingConfig.EndpointsConfig == nil {
 			return config
 		}
 		networkEndpoint.Aliases = []string{containerName}
@@ -134,14 +140,20 @@ func getNetworkID(cluster cluster.Cluster, r *http.Request, networkReference str
 	return networkReference
 }
 
-func cleanUpNames(responseRecorder *httptest.ResponseRecorder, networkName string) []byte {
+func cleanUpNames(responseRecorder *httptest.ResponseRecorder, networkName string, tenantID string, cluster cluster.Cluster) []byte {
 	var networkResource apitypes.NetworkResource
 	if err := json.NewDecoder(bytes.NewReader(responseRecorder.Body.Bytes())).Decode(&networkResource); err != nil {
 		log.Error(err)
 		return nil
 	}
 	networkResource.Name = networkName
-	// TODO: change the names of the attached containers.
+	// show original name for the attached containers.
+	for k, v := range networkResource.Containers {
+		if container := utils.GetContainer(k, tenantID, cluster); container != nil {
+			v.Name = container.Labels[headers.OriginalNameLabel]
+		}
+		networkResource.Containers[k] = v
+	}
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(networkResource); err != nil {
 		log.Error(err)

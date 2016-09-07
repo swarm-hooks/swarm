@@ -55,9 +55,6 @@ func (defaultauthZ *DefaultAuthZImpl) Handle(command utils.CommandEnum, cluster 
 				return errInfo
 			}
 			config.Config.Labels[headers.TenancyLabel] = r.Header.Get(headers.AuthZTenantIdHeaderName)
-			//if err := hostFSMountCheck(r.Header.Get(headers.AuthZTenantIdHeaderName), oldconfig.HostConfig.Binds); err != nil {
-			//	return err
-			//}
 			var buf bytes.Buffer
 			if err := json.NewEncoder(&buf).Encode(config); err != nil {
 				errInfo.Err = err
@@ -141,7 +138,8 @@ func (defaultauthZ *DefaultAuthZImpl) Handle(command utils.CommandEnum, cluster 
 
 	case utils.NETWORK_INSPECT, utils.NETWORK_DELETE:
 		if !utils.IsResourceOwner(cluster, r.Header.Get(headers.AuthZTenantIdHeaderName), mux.Vars(r)["networkid"], "network") {
-			errInfo.Err = errors.New("Not authorized or no such network!")
+			errInfo.Err = errors.New(fmt.Sprintf("No such network: %s", mux.Vars(r)["networkid"]))
+			errInfo.Status = http.StatusNotFound
 			return errInfo
 		}
 		return defaultauthZ.nextHandler(command, cluster, w, r, swarmHandler)
