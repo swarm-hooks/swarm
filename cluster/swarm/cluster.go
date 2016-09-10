@@ -161,6 +161,16 @@ func (c *Cluster) CreateContainer(config *cluster.ContainerConfig, name string, 
 			}
 		}
 
+
+		// TODO: if out of resources error - set resourcesRetry value and run re-sceduling
+		// for now do it anyway as we don't have error ready.
+		resourcesRetry := 3
+		for retry := 0; retry < resourcesRetry && err != nil; retry++ {
+			log.WithFields(log.Fields{"Name": "Swarm"}).Warnf("Failed to create container: %s, retrying", err)
+			container, err = c.createContainer(config, name, false, authConfig)
+		}
+
+
 		for ; retries < c.createRetry && err != nil; retries++ {
 			log.WithFields(log.Fields{"Name": "Swarm"}).Warnf("Failed to create container: %s, retrying", err)
 			container, err = c.createContainer(config, name, false, authConfig)
