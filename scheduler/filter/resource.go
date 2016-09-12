@@ -20,16 +20,16 @@ func (f *ResourceFilter) Name() string {
 
 // Filter is exported
 func (f *ResourceFilter) Filter(config *cluster.ContainerConfig, nodes []*node.Node, _ bool) ([]*node.Node, error) {
-	availableMemory, err := strconv.ParseInt(os.Getenv("SWARM_MEMORY_LIMIT_MB"), 10, 64)
+	availableMemory, err := strconv.ParseInt(os.Getenv("SWARM_NODE_MEMORY_LIMIT_MB"), 10, 64)
 	if err != nil {
-		log.Warning("Swarm memory limit was not set.")
+		log.Warning("Swarm node memory limit was not set.")
 		availableMemory = -1
 	} else {
 		availableMemory = availableMemory * 1024 * 1024
 	}
-	availableCpu, err := strconv.ParseInt(os.Getenv("SWARM_CPU_LIMIT"), 10, 64)
+	availableCpu, err := strconv.ParseInt(os.Getenv("SWARM_NODE_CPU_LIMIT"), 10, 64)
 	if err != nil {
-		log.Warning("Swarm CPU limit was not set.")
+		log.Warning("Swarm node CPU limit was not set.")
 		availableCpu = -1
 	}
 	containerMemory := config.HostConfig.Memory
