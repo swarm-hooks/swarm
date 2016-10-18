@@ -44,9 +44,9 @@ func (defaultauthZ *DefaultAuthZImpl) Handle(command utils.CommandEnum, cluster 
 				errInfo.Err = err
 				return errInfo
 			}
-			//Disallow a user to create the special labels we inject : headers.TenancyLabel
-			if strings.Contains(string(reqBody), headers.TenancyLabel) == true {
-				errInfo.Err = errors.New("Error, special label " + headers.TenancyLabel + " not allowed!")
+			// Special constraints for container labels/name
+			if err := utils.CheckConstraints(r, string(reqBody)); err != nil {
+				errInfo.Err = err
 				return errInfo
 			}
 			// network authorization
