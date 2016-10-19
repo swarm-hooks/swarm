@@ -3,6 +3,7 @@ package utils
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"io"
 	"io/ioutil"
 	"math/rand"
@@ -93,6 +94,17 @@ func CleanUpLabeling(r *http.Request, rec *httptest.ResponseRecorder) []byte {
 	log.Debugf("Clean up labeling done.")
 	//	log.Debug("Got this new body...", string(newBody))
 	return newBody
+}
+
+//
+func CheckConstraints(r *http.Request, reqBody string) error {
+	if strings.Contains(reqBody, headers.TenancyLabel) {
+		return errors.New("Special label " + headers.TenancyLabel + " not allowed")
+	}
+	if strings.HasPrefix(r.URL.Query().Get("name"), "k8s_") {
+		return errors.New("Name prefix k8s_ is not allowed")
+	}
+	return nil
 }
 
 // RandStringBytesRmndr used to generate a name for docker volume create when no name is supplied
