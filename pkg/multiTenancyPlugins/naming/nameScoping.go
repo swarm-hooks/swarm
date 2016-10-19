@@ -120,7 +120,7 @@ func (nameScoping *DefaultNameScopingImpl) Handle(command utils.CommandEnum, clu
 		for k, v := range responseRecorder.Header() {
 			w.Header()[k] = v
 		}
-		newBody := cleanUpNames(responseRecorder, networkName)
+		newBody := cleanUpNames(responseRecorder, networkName, r.Header.Get(headers.AuthZTenantIdHeaderName), cluster)
 		w.Write(newBody)
 
 	case utils.PS, utils.JSON, utils.NETWORKS_LIST, utils.INFO, utils.EVENTS, utils.IMAGES_JSON, utils.EXEC_START, utils.EXEC_RESIZE, utils.EXEC_JSON, utils.IMAGE_PULL, utils.IMAGE_SEARCH, utils.IMAGE_HISTORY, utils.IMAGE_JSON, utils.VERSION:
