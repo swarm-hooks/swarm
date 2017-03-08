@@ -20,7 +20,7 @@ load cli_helpers
 
 @test "Check volume management" {
     #skip 
-	run docker -H $SWARM_HOST --config $DOCKER_CONFIG1 volume create --name t1volume
+	run docker -H $SWARM_HOST --config $DOCKER_CONFIG1 volume create -d nfs --name t1volume
     [ "$status" -eq 0 ]
     [[ "$output" == "t1volume" ]]
 	run docker -H $SWARM_HOST --config $DOCKER_CONFIG1 volume ls -q
@@ -51,7 +51,7 @@ load cli_helpers
 
 	# check isolation
 	
-	run docker -H $SWARM_HOST --config $DOCKER_CONFIG2 volume create --name t2volume
+	run docker -H $SWARM_HOST --config $DOCKER_CONFIG2 volume create -d nfs --name t2volume
     [ "$status" -eq 0 ]
     [[ "$output" == "t2volume" ]]
 	run docker -H $SWARM_HOST --config $DOCKER_CONFIG2 volume ls -q
@@ -80,7 +80,7 @@ load cli_helpers
     [[ "$output" == *"Error"* ]]
 	
 	# allowing same name
-	run docker -H $SWARM_HOST --config $DOCKER_CONFIG2 volume create --name t1volume
+	run docker -H $SWARM_HOST --config $DOCKER_CONFIG2 volume create -d nfs --name t1volume
     [ "$status" -eq 0 ]
     [[ "$output" == "t1volume" ]]
 	run docker -H $SWARM_HOST --config $DOCKER_CONFIG2 volume ls -q
@@ -96,7 +96,7 @@ load cli_helpers
     [[ "$output" == "t1volume" ]]	
 	
 	# without name
-	run docker -H $SWARM_HOST --config $DOCKER_CONFIG1 volume create 
+	run docker -H $SWARM_HOST --config $DOCKER_CONFIG1 volume create -d nfs
     [ "$status" -ne 0 ]
 	#[ "$status" -eq 0 ]
 	#newvolume=$output
@@ -124,17 +124,17 @@ load cli_helpers
 @test "Check volume binding without volume create" {
 	#skip
 	# implicit volume without volume create 
-	run docker -H $SWARM_HOST --config $DOCKER_CONFIG1 run -v implicit_myvolume:/data busybox sh -c "echo tenant1 hello  > /data/file.txt"
+	run docker -H $SWARM_HOST --config $DOCKER_CONFIG1 run --rm --volume-driver nfs -v implicit_myvolume:/data busybox sh -c "echo tenant1 hello  > /data/file.txt"
     [ "$status" -eq 0 ]
-	run docker -H $SWARM_HOST --config $DOCKER_CONFIG1 run -v implicit_myvolume:/data busybox sh -c "cat /data/file.txt"
+	run docker -H $SWARM_HOST --config $DOCKER_CONFIG1 run --rm --volume-driver nfs -v implicit_myvolume:/data busybox sh -c "cat /data/file.txt"
 	[ "$status" -eq 0 ]
 	[[ "$output" == "tenant1 hello" ]]
-	run docker -H $SWARM_HOST --config $DOCKER_CONFIG2 run -v implicit_myvolume:/data busybox sh -c "echo tenant2 hello  > /data/file.txt"
+	run docker -H $SWARM_HOST --config $DOCKER_CONFIG2 run --rm --volume-driver nfs -v implicit_myvolume:/data busybox sh -c "echo tenant2 hello  > /data/file.txt"
     [ "$status" -eq 0 ]
-	run docker -H $SWARM_HOST --config $DOCKER_CONFIG2 run -v implicit_myvolume:/data busybox sh -c "cat /data/file.txt"
+	run docker -H $SWARM_HOST --config $DOCKER_CONFIG2 run --rm --volume-driver nfs -v implicit_myvolume:/data busybox sh -c "cat /data/file.txt"
 	[ "$status" -eq 0 ]
 	[[ "$output" == "tenant2 hello" ]]
-	run docker -H $SWARM_HOST --config $DOCKER_CONFIG1 run -v implicit_myvolume:/data busybox sh -c "cat /data/file.txt"
+	run docker -H $SWARM_HOST --config $DOCKER_CONFIG1 run --rm --volume-driver nfs -v implicit_myvolume:/data busybox sh -c "cat /data/file.txt"
 	[ "$status" -eq 0 ]
 	[[ "$output" == "tenant1 hello" ]]
 }
@@ -142,45 +142,28 @@ load cli_helpers
 
 @test "Check volume binding with volume create" {
     #skip 
-	run docker -H $SWARM_HOST --config $DOCKER_CONFIG1 volume create --name myvolume
+	run docker -H $SWARM_HOST --config $DOCKER_CONFIG1 volume create -d nfs --name myvolume
     [ "$status" -eq 0 ]
     [[ "$output" == "myvolume" ]]
-	run docker -H $SWARM_HOST --config $DOCKER_CONFIG1 run -v myvolume:/data --name con1  busybox sh -c "echo tenant1 hello  > /data/file.txt"
+	run docker -H $SWARM_HOST --config $DOCKER_CONFIG1 run --rm -v myvolume:/data busybox sh -c "echo tenant1 hello  > /data/file.txt"
     [ "$status" -eq 0 ]
-	run docker -H $SWARM_HOST --config $DOCKER_CONFIG1 run -v myvolume:/data  --name con2  busybox sh -c "cat /data/file.txt"
+	run docker -H $SWARM_HOST --config $DOCKER_CONFIG1 run --rm -v myvolume:/data busybox sh -c "cat /data/file.txt"
 	[ "$status" -eq 0 ]
 	[[ "$output" == "tenant1 hello" ]]
-
 	
-	run docker -H $SWARM_HOST --config $DOCKER_CONFIG2 volume create --name myvolume
+	run docker -H $SWARM_HOST --config $DOCKER_CONFIG2 volume create -d nfs --name myvolume
     [ "$status" -eq 0 ]
     [[ "$output" == "myvolume" ]]
-	run docker -H $SWARM_HOST --config $DOCKER_CONFIG2 run -v myvolume:/data --name con2 busybox sh -c "echo tenant2 hello  > /data/file.txt"
+	run docker -H $SWARM_HOST --config $DOCKER_CONFIG2 run --rm -v myvolume:/data busybox sh -c "echo tenant2 hello  > /data/file.txt"
     [ "$status" -eq 0 ]
 
-	run docker -H $SWARM_HOST --config $DOCKER_CONFIG1 run -v myvolume:/data  --name con3 busybox sh -c "cat /data/file.txt"
+	run docker -H $SWARM_HOST --config $DOCKER_CONFIG1 run --rm -v myvolume:/data busybox sh -c "cat /data/file.txt"
 	[ "$status" -eq 0 ]
-	echo $output
 	[[ "$output" == "tenant1 hello" ]]
 
-	run docker -H $SWARM_HOST --config $DOCKER_CONFIG2 run -v myvolume:/data --name con4 busybox sh -c "cat /data/file.txt"
+	run docker -H $SWARM_HOST --config $DOCKER_CONFIG2 run --rm -v myvolume:/data busybox sh -c "cat /data/file.txt"
 	[ "$status" -eq 0 ]
 	[[ "$output" == "tenant2 hello" ]]	
-
-	run docker -H $SWARM_HOST --config $DOCKER_CONFIG1 rm con1
-	[ "$status" -eq 0 ]
-
-	run docker -H $SWARM_HOST --config $DOCKER_CONFIG1 rm con2
-	[ "$status" -eq 0 ]
-	
-	run docker -H $SWARM_HOST --config $DOCKER_CONFIG2 rm con2
-	[ "$status" -eq 0 ]
-	
-	run docker -H $SWARM_HOST --config $DOCKER_CONFIG1 rm con3
-	[ "$status" -eq 0 ]
-
-	run docker -H $SWARM_HOST --config $DOCKER_CONFIG2 rm con4
-	[ "$status" -eq 0 ]
 
 	run docker -H $SWARM_HOST --config $DOCKER_CONFIG1 volume rm myvolume
 	[ "$status" -eq 0 ]

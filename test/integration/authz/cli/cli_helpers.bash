@@ -160,13 +160,7 @@ rmall() {
 
 
 rmall_volumes() {
-   echo "volume rm all $1"
-   run docker -H $SWARM_HOST --config $1 volume ls -q
-   for i in "${lines[@]}"
-   do
-     #v=echo $i | cut -d'/' -f2
-     run docker -H $SWARM_HOST --config $1 volume rm $i
-   done
+   run docker -H $SWARM_HOST --config $1 volume rm $(docker -H $SWARM_HOST --config $1  volume ls -q)
 }
 
 
